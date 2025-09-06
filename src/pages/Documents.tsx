@@ -4,15 +4,38 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Search, FileText, Download, Eye, Shield, Lock } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { mockDocuments } from "@/lib/mockData"
-import { useState } from "react"
+import { LawFirmService, type LawDocument } from "@/services/lawFirmService"
+import { useState, useEffect } from "react"
+import { useToast } from "@/hooks/use-toast"
 
 export default function Documents() {
   const [searchTerm, setSearchTerm] = useState("")
+  const [documents, setDocuments] = useState<LawDocument[]>([])
+  const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
   
-  const filteredDocuments = mockDocuments.filter(doc =>
+  useEffect(() => {
+    loadDocuments()
+  }, [])
+
+  const loadDocuments = async () => {
+    try {
+      const data = await LawFirmService.getDocuments()
+      setDocuments(data)
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os documentos",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+  
+  const filteredDocuments = documents.filter(doc =>
     doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    doc.type.toLowerCase().includes(searchTerm.toLowerCase())
+    doc.file_type.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   const getStatusColor = (status: string) => {
@@ -80,16 +103,33 @@ export default function Documents() {
         />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
-        {filteredDocuments.map((document) => (
+      {loading ? (
+        <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i} className="animate-pulse">
+              <CardHeader className="pb-3">
+                <div className="h-4 bg-muted rounded w-3/4"></div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="h-3 bg-muted rounded w-full"></div>
+                  <div className="h-3 bg-muted rounded w-2/3"></div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
+          {filteredDocuments.map((document) => (
           <Card key={document.id} className="hover:shadow-md transition-shadow cursor-pointer">
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div className="flex items-center space-x-3">
-                  {getFileIcon(document.type)}
+                  {getFileIcon(document.file_type)}
                   <div className="space-y-1">
                     <CardTitle className="text-base leading-tight">{document.name}</CardTitle>
-                    <p className="text-sm text-muted-foreground">{document.type} • {formatFileSize(document.size)}</p>
+                    <p className="text-sm text-muted-foreground">{document.file_type} • {formatFileSize(document.file_size)}</p>
                   </div>
                 </div>
                 {document.encrypted && (
@@ -113,9 +153,9 @@ export default function Documents() {
               </div>
 
               <div className="text-sm text-muted-foreground">
-                <p>Criado: {new Date(document.createdAt).toLocaleDateString('pt-BR')}</p>
-                {document.caseId && (
-                  <p>Caso: #{document.caseId}</p>
+                <p>Criado: {new Date(document.created_at).toLocaleDateString('pt-BR')}</p>
+                {document.case_id && (
+                  <p>Caso: #{document.case_id}</p>
                 )}
               </div>
 
@@ -142,7 +182,8 @@ export default function Documents() {
             </CardContent>
           </Card>
         ))}
-      </div>
+        </div>
+      )}
 
       {filteredDocuments.length === 0 && (
         <div className="text-center py-12">

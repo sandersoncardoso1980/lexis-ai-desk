@@ -1,258 +1,274 @@
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 
-// Generic types for law firm entities since tables may not exist yet
-export interface LawClient {
-  id: string;
-  name: string;
-  email: string;
-  phone?: string;
-  address?: string;
-  document_number?: string;
-  client_type: 'individual' | 'company';
-  notes?: string;
-  status: 'active' | 'inactive' | 'archived';
-  created_at: string;
-  updated_at: string;
-}
+// Types using database schema
+export type LawClient = Database['public']['Tables']['law_clients']['Row'];
+export type LawCase = Database['public']['Tables']['law_cases']['Row'];
+export type LawDocument = Database['public']['Tables']['law_documents']['Row'];
+export type LawTask = Database['public']['Tables']['law_tasks']['Row'];
+export type LawAppointment = Database['public']['Tables']['law_appointments']['Row'];
+export type Profile = Database['public']['Tables']['profiles']['Row'];
 
-export interface LawCase {
-  id: string;
-  client_id: string;
-  case_number: string;
-  title: string;
-  description?: string;
-  case_type: string;
-  status: 'open' | 'in_progress' | 'closed' | 'archived';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  value?: number;
-  start_date?: string;
-  expected_end_date?: string;
-  actual_end_date?: string;
-  court?: string;
-  judge?: string;
-  opposing_party?: string;
-  created_at: string;
-  updated_at: string;
-  law_clients?: Partial<LawClient>;
-}
-
-export interface LawDocument {
-  id: string;
-  name: string;
-  description?: string;
-  file_path: string;
-  file_size: number;
-  file_type: string;
-  mime_type: string;
-  encrypted: boolean;
-  encryption_key?: string;
-  case_id?: string;
-  client_id?: string;
-  document_type: string;
-  status: 'draft' | 'review' | 'approved' | 'signed' | 'archived';
-  version: number;
-  tags?: string[];
-  created_by?: string;
-  created_at: string;
-  updated_at: string;
-  law_cases?: Partial<LawCase>;
-  law_clients?: Partial<LawClient>;
-}
-
-export interface LawTask {
-  id: string;
-  title: string;
-  description?: string;
-  case_id?: string;
-  client_id?: string;
-  assigned_to?: string;
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
-  due_date?: string;
-  completed_date?: string;
-  category?: string;
-  notes?: string;
-  created_by?: string;
-  created_at: string;
-  updated_at: string;
-  law_cases?: Partial<LawCase>;
-  law_clients?: Partial<LawClient>;
-}
-
-export interface LawAppointment {
-  id: string;
-  title: string;
-  description?: string;
-  client_id?: string;
-  case_id?: string;
-  appointment_date: string;
-  start_time: string;
-  end_time: string;
-  location?: string;
-  appointment_type: string;
-  status: 'scheduled' | 'confirmed' | 'completed' | 'cancelled' | 'rescheduled';
-  notes?: string;
-  reminder_sent: boolean;
-  created_by?: string;
-  created_at: string;
-  updated_at: string;
-  law_cases?: Partial<LawCase>;
-  law_clients?: Partial<LawClient>;
-}
-
-// Service class to handle database operations with fallback to mock data
+// Service class to handle database operations
 export class LawFirmService {
-  private static async checkTableExists(tableName: string): Promise<boolean> {
-    try {
-      // For now, always return false to use mock data
-      // Once tables are created, this can be updated
-      return false;
-    } catch {
-      return false;
-    }
-  }
-
   // Client methods
   static async getClients(): Promise<LawClient[]> {
-    // For now, always use mock data until tables are created
-    return this.getMockClients();
+    const { data, error } = await supabase
+      .from('law_clients')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
   }
 
   static async createClient(client: Omit<LawClient, 'id' | 'created_at' | 'updated_at'>): Promise<LawClient> {
-    // Return mock client for now
-    const mockClient: LawClient = {
-      ...client,
-      id: Math.random().toString(36).substring(2),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    return mockClient;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    const { data, error } = await supabase
+      .from('law_clients')
+      .insert({ ...client, user_id: user.id })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  static async updateClient(id: string, updates: Partial<LawClient>): Promise<LawClient> {
+    const { data, error } = await supabase
+      .from('law_clients')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  static async deleteClient(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('law_clients')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
   }
 
   // Case methods
   static async getCases(): Promise<LawCase[]> {
-    return this.getMockCases();
+    const { data, error } = await supabase
+      .from('law_cases')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
   }
 
   static async createCase(caseData: Omit<LawCase, 'id' | 'created_at' | 'updated_at'>): Promise<LawCase> {
-    const mockCase: LawCase = {
-      ...caseData,
-      id: Math.random().toString(36).substring(2),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    return mockCase;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    const { data, error } = await supabase
+      .from('law_cases')
+      .insert({ ...caseData, user_id: user.id })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  static async updateCase(id: string, updates: Partial<LawCase>): Promise<LawCase> {
+    const { data, error } = await supabase
+      .from('law_cases')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  static async deleteCase(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('law_cases')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
   }
 
   // Document methods
   static async getDocuments(): Promise<LawDocument[]> {
-    return this.getMockDocuments();
+    const { data, error } = await supabase
+      .from('law_documents')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
+  }
+
+  static async createDocument(document: Omit<LawDocument, 'id' | 'created_at' | 'updated_at'>): Promise<LawDocument> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    const { data, error } = await supabase
+      .from('law_documents')
+      .insert({ ...document, user_id: user.id })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  static async updateDocument(id: string, updates: Partial<LawDocument>): Promise<LawDocument> {
+    const { data, error } = await supabase
+      .from('law_documents')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  static async deleteDocument(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('law_documents')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
   }
 
   // Task methods
   static async getTasks(): Promise<LawTask[]> {
-    return this.getMockTasks();
+    const { data, error } = await supabase
+      .from('law_tasks')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
+  }
+
+  static async createTask(task: Omit<LawTask, 'id' | 'created_at' | 'updated_at'>): Promise<LawTask> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    const { data, error } = await supabase
+      .from('law_tasks')
+      .insert({ ...task, user_id: user.id })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  static async updateTask(id: string, updates: Partial<LawTask>): Promise<LawTask> {
+    const { data, error } = await supabase
+      .from('law_tasks')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  static async deleteTask(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('law_tasks')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
   }
 
   // Appointment methods
   static async getAppointments(): Promise<LawAppointment[]> {
-    return this.getMockAppointments();
+    const { data, error } = await supabase
+      .from('law_appointments')
+      .select('*')
+      .order('appointment_date', { ascending: true });
+    
+    if (error) throw error;
+    return data || [];
   }
 
-  // Mock data methods (fallback)
-  private static getMockClients(): LawClient[] {
-    return [
-      {
-        id: '1',
-        name: 'João Silva',
-        email: 'joao@email.com',
-        phone: '(11) 99999-9999',
-        document_number: '123.456.789-10',
-        client_type: 'individual',
-        status: 'active',
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z'
-      },
-      {
-        id: '2',
-        name: 'Empresa XYZ Ltda',
-        email: 'contato@empresaxyz.com',
-        phone: '(11) 3333-3333',
-        document_number: '12.345.678/0001-90',
-        client_type: 'company',
-        status: 'active',
-        created_at: '2024-01-02T00:00:00Z',
-        updated_at: '2024-01-02T00:00:00Z'
-      }
-    ];
+  static async createAppointment(appointment: Omit<LawAppointment, 'id' | 'created_at' | 'updated_at'>): Promise<LawAppointment> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    const { data, error } = await supabase
+      .from('law_appointments')
+      .insert({ ...appointment, user_id: user.id })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
   }
 
-  private static getMockCases(): LawCase[] {
-    return [
-      {
-        id: '1',
-        client_id: '1',
-        case_number: '2024001',
-        title: 'Ação de Cobrança',
-        description: 'Cobrança de honorários advocatícios',
-        case_type: 'civil',
-        status: 'in_progress',
-        priority: 'medium',
-        value: 15000,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z'
-      }
-    ];
+  static async updateAppointment(id: string, updates: Partial<LawAppointment>): Promise<LawAppointment> {
+    const { data, error } = await supabase
+      .from('law_appointments')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
   }
 
-  private static getMockDocuments(): LawDocument[] {
-    return [
-      {
-        id: '1',
-        name: 'Contrato de Prestação de Serviços',
-        file_path: '/mock/contract.pdf',
-        file_size: 245760,
-        file_type: 'pdf',
-        mime_type: 'application/pdf',
-        encrypted: true,
-        document_type: 'contract',
-        status: 'approved',
-        version: 1,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z'
-      }
-    ];
+  static async deleteAppointment(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('law_appointments')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
   }
 
-  private static getMockTasks(): LawTask[] {
-    return [
-      {
-        id: '1',
-        title: 'Elaborar petição inicial',
-        description: 'Preparar documentação para novo processo',
-        priority: 'high',
-        status: 'pending',
-        due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z'
-      }
-    ];
+  // Profile methods
+  static async getCurrentProfile(): Promise<Profile | null> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
+    
+    if (error) throw error;
+    return data;
   }
 
-  private static getMockAppointments(): LawAppointment[] {
-    return [
-      {
-        id: '1',
-        title: 'Consulta - João Silva',
-        appointment_date: new Date().toISOString().split('T')[0],
-        start_time: '14:00',
-        end_time: '15:00',
-        appointment_type: 'consultation',
-        status: 'scheduled',
-        reminder_sent: false,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z'
-      }
-    ];
+  static async updateProfile(updates: Partial<Profile>): Promise<Profile> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('user_id', user.id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
   }
+
 }

@@ -5,16 +5,38 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Plus, Search, DollarSign, Calendar, User } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { mockCases } from "@/lib/mockData"
-import { useState } from "react"
+import { LawFirmService, type LawCase } from "@/services/lawFirmService"
+import { useState, useEffect } from "react"
+import { useToast } from "@/hooks/use-toast"
 
 export default function Cases() {
   const [searchTerm, setSearchTerm] = useState("")
+  const [cases, setCases] = useState<LawCase[]>([])
+  const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
   
-  const filteredCases = mockCases.filter(case_ =>
+  useEffect(() => {
+    loadCases()
+  }, [])
+
+  const loadCases = async () => {
+    try {
+      const data = await LawFirmService.getCases()
+      setCases(data)
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os casos",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+  
+  const filteredCases = cases.filter(case_ =>
     case_.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    case_.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    case_.area.toLowerCase().includes(searchTerm.toLowerCase())
+    case_.case_type.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   const getStatusColor = (status: string) => {
@@ -115,14 +137,33 @@ export default function Cases() {
         />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
-        {filteredCases.map((case_) => (
+      {loading ? (
+        <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="animate-pulse">
+              <CardHeader className="pb-3">
+                <div className="h-5 bg-muted rounded w-3/4 mb-2"></div>
+                <div className="h-3 bg-muted rounded w-1/2"></div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="h-3 bg-muted rounded w-full"></div>
+                  <div className="h-3 bg-muted rounded w-2/3"></div>
+                  <div className="h-2 bg-muted rounded w-full"></div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
+          {filteredCases.map((case_) => (
           <Card key={case_.id} className="hover:shadow-md transition-shadow cursor-pointer">
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div className="space-y-1">
                   <CardTitle className="text-lg">{case_.title}</CardTitle>
-                  <p className="text-sm text-muted-foreground">{case_.area}</p>
+                  <p className="text-sm text-muted-foreground">{case_.case_type}</p>
                 </div>
                 <div className="flex flex-col items-end space-y-2">
                   <Badge className={getStatusColor(case_.status)}>
@@ -148,7 +189,7 @@ export default function Cases() {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div className="flex items-center space-x-2">
                   <User className="h-4 w-4 text-muted-foreground" />
-                  <span>{case_.clientName}</span>
+                  <span>#{case_.case_number}</span>
                 </div>
                 {case_.value && (
                   <div className="flex items-center space-x-2">
@@ -161,12 +202,12 @@ export default function Cases() {
               <div className="flex items-center justify-between text-sm text-muted-foreground">
                 <div className="flex items-center space-x-2">
                   <Calendar className="h-4 w-4" />
-                  <span>Criado: {new Date(case_.createdAt).toLocaleDateString('pt-BR')}</span>
+                  <span>Criado: {new Date(case_.created_at).toLocaleDateString('pt-BR')}</span>
                 </div>
-                {case_.deadline && (
+                {case_.expected_end_date && (
                   <div className="flex items-center space-x-2">
                     <Calendar className="h-4 w-4" />
-                    <span>Prazo: {new Date(case_.deadline).toLocaleDateString('pt-BR')}</span>
+                    <span>Prazo: {new Date(case_.expected_end_date).toLocaleDateString('pt-BR')}</span>
                   </div>
                 )}
               </div>
@@ -182,7 +223,8 @@ export default function Cases() {
             </CardContent>
           </Card>
         ))}
-      </div>
+        </div>
+      )}
 
       {filteredCases.length === 0 && (
         <div className="text-center py-12">

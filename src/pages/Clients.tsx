@@ -5,13 +5,36 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Plus, Search, Mail, Phone, Building } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { mockClients } from "@/lib/mockData"
-import { useState } from "react"
+import { LawFirmService, type LawClient } from "@/services/lawFirmService"
+import { useState, useEffect } from "react"
+import { useToast } from "@/hooks/use-toast"
 
 export default function Clients() {
   const [searchTerm, setSearchTerm] = useState("")
+  const [clients, setClients] = useState<LawClient[]>([])
+  const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
   
-  const filteredClients = mockClients.filter(client =>
+  useEffect(() => {
+    loadClients()
+  }, [])
+
+  const loadClients = async () => {
+    try {
+      const data = await LawFirmService.getClients()
+      setClients(data)
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os clientes",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+  
+  const filteredClients = clients.filter(client =>
     client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     client.email.toLowerCase().includes(searchTerm.toLowerCase())
   )
@@ -65,14 +88,31 @@ export default function Clients() {
         />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {filteredClients.map((client) => (
+      {loading ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i} className="animate-pulse">
+              <CardHeader className="pb-3">
+                <div className="h-4 bg-muted rounded w-3/4"></div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="h-3 bg-muted rounded w-full"></div>
+                  <div className="h-3 bg-muted rounded w-2/3"></div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filteredClients.map((client) => (
           <Card key={client.id} className="hover:shadow-md transition-shadow cursor-pointer">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <Avatar>
-                    <AvatarImage src={client.avatar} />
+                    <AvatarImage src="" />
                     <AvatarFallback>
                       {client.name.split(' ').map(n => n[0]).join('').toUpperCase()}
                     </AvatarFallback>
@@ -95,15 +135,15 @@ export default function Clients() {
                 <Phone className="h-4 w-4" />
                 <span>{client.phone}</span>
               </div>
-              {client.company && (
+              {client.client_type === 'company' && (
                 <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                   <Building className="h-4 w-4" />
-                  <span>{client.company}</span>
+                  <span>{client.client_type === 'company' ? 'Empresa' : 'Pessoa Física'}</span>
                 </div>
               )}
               <div className="pt-3 border-t">
                 <p className="text-xs text-muted-foreground">
-                  Cliente desde: {new Date(client.createdAt).toLocaleDateString('pt-BR')}
+                  Cliente desde: {new Date(client.created_at).toLocaleDateString('pt-BR')}
                 </p>
               </div>
               <div className="flex space-x-2">
@@ -117,7 +157,8 @@ export default function Clients() {
             </CardContent>
           </Card>
         ))}
-      </div>
+        </div>
+      )}
 
       {filteredClients.length === 0 && (
         <div className="text-center py-12">

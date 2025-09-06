@@ -1,8 +1,6 @@
 import { ReactNode } from "react";
+import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { LoginForm } from "./LoginForm";
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -13,24 +11,17 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              <Skeleton className="h-8 w-3/4 mx-auto" />
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary/20">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
       </div>
     );
   }
 
   if (!user) {
-    return <LoginForm />;
+    return <Navigate to="/auth" replace />;
   }
 
   return <>{children}</>;
