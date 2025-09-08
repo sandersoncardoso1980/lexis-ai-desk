@@ -147,11 +147,8 @@ export default function Clients() {
                 </p>
               </div>
               <div className="flex space-x-2">
-                <Button variant="outline" size="sm" className="flex-1">
+                <Button variant="outline" size="sm" className="flex-1" onClick={() => window.location.href = `/clients/${client.id}`}>
                   Ver Detalhes
-                </Button>
-                <Button variant="outline" size="sm" className="flex-1">
-                  Editar
                 </Button>
               </div>
             </CardContent>

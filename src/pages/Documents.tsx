@@ -160,13 +160,9 @@ export default function Documents() {
               </div>
 
               <div className="flex space-x-2">
-                <Button variant="outline" size="sm" className="flex-1">
+                <Button variant="outline" size="sm" className="flex-1" onClick={() => window.location.href = `/documents/${document.id}`}>
                   <Eye className="mr-1 h-3 w-3" />
-                  Visualizar
-                </Button>
-                <Button variant="outline" size="sm" className="flex-1">
-                  <Download className="mr-1 h-3 w-3" />
-                  Download
+                  Ver Detalhes
                 </Button>
               </div>
 
