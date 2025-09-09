@@ -5,9 +5,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+
+// Páginas
 import Dashboard from "./pages/Dashboard";
 import Clients from "./pages/Clients";
-import Cases from "./pages/Cases";
+import {Cases}  from "./pages/Cases";
+import CaseDetail from "./pages/CaseDetail"; // Importar o componente de detalhe do caso
 import Documents from "./pages/Documents";
 import Calendar from "./pages/Calendar";
 import AIAssistant from "./pages/AIAssistant";
@@ -30,7 +33,11 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
+
+            {/* Rota para a lista de casos */}
             <Route path="/cases" element={<ProtectedRoute><Cases /></ProtectedRoute>} />
+            {/* Rota dinâmica para o detalhe de um caso específico */}
+            <Route path="/cases/:id" element={<ProtectedRoute><CaseDetail /></ProtectedRoute>} />
             <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
             <Route path="/calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
             <Route path="/ai-assistant" element={<ProtectedRoute><AIAssistant /></ProtectedRoute>} />

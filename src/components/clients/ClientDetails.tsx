@@ -1,152 +1,114 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+// pages/ClientDetailsPage.tsx
+import { useState, useEffect } from "react"
+import { useParams, useNavigate } from "react-router-dom"
+import { AppLayout } from "@/components/layout/AppLayout"
+import { LawFirmService, type LawClient } from "@/services/lawFirmService"
+import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Mail, Phone, Building, MapPin, FileText, Edit, Trash2 } from "lucide-react"
-import { type LawClient } from "@/services/lawFirmService"
+import { ArrowLeft } from "lucide-react"
+// ✅ Importação correta para export default
+import ClientDetails from "@/components/clients/ClientDetails"
+import ClientDetail from "@/pages/ClientDetail"
 
-interface ClientDetailsProps {
-  client: LawClient
-  onEdit: () => void
-  onDelete: () => void
-}
+export default function ClientDetailsPage() {
+  const { id } = useParams<{ id: string }>()
+  const [client, setClient] = useState<LawClient | null>(null)
+  const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
+  const navigate = useNavigate()
 
-export function ClientDetails({ client, onEdit, onDelete }: ClientDetailsProps) {
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'bg-success/10 text-success'
-      case 'inactive':
-        return 'bg-muted text-muted-foreground'
-      case 'potential':
-        return 'bg-warning/10 text-warning'
-      default:
-        return 'bg-muted text-muted-foreground'
+  useEffect(() => {
+    if (id) {
+      loadClient()
+    }
+  }, [id])
+
+  const loadClient = async () => {
+    try {
+      const data = await LawFirmService.getClient(id!)
+      setClient(data)
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os dados do cliente",
+        variant: "destructive"
+      })
+      navigate("/clients")
+    } finally {
+      setLoading(false)
     }
   }
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'Ativo'
-      case 'inactive':
-        return 'Inativo'
-      case 'potential':
-        return 'Potencial'
-      default:
-        return status
+  const handleEdit = () => {
+    navigate(`/clients/${id}/edit`)
+  }
+
+  const handleDelete = async () => {
+    if (window.confirm("Tem certeza que deseja excluir este cliente?")) {
+      try {
+        await LawFirmService.deleteClient(id!)
+        toast({
+          title: "Sucesso",
+          description: "Cliente excluído com sucesso"
+        })
+        navigate("/clients")
+      } catch (error) {
+        toast({
+          title: "Erro",
+          description: "Não foi possível excluir o cliente",
+          variant: "destructive"
+        })
+      }
     }
+  }
+
+  if (loading) {
+    return (
+      <AppLayout breadcrumbs={[
+        { label: "Dashboard", href: "/" },
+        { label: "Clientes", href: "/clients" },
+        { label: "Carregando..." }
+      ]}>
+        <div className="animate-pulse">Carregando...</div>
+      </AppLayout>
+    )
+  }
+
+  if (!client) {
+    return (
+      <AppLayout breadcrumbs={[
+        { label: "Dashboard", href: "/" },
+        { label: "Clientes", href: "/clients" },
+        { label: "Não encontrado" }
+      ]}>
+        <div>Cliente não encontrado</div>
+      </AppLayout>
+    )
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <Avatar className="h-16 w-16">
-                <AvatarFallback className="text-lg">
-                  {client.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <CardTitle className="text-2xl">{client.name}</CardTitle>
-                <div className="flex items-center space-x-2 mt-2">
-                  <Badge className={getStatusColor(client.status)}>
-                    {getStatusLabel(client.status)}
-                  </Badge>
-                  <Badge variant="outline">
-                    {client.client_type === 'company' ? 'Empresa' : 'Pessoa Física'}
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <div className="flex space-x-2">
-              <Button variant="outline" onClick={onEdit}>
-                <Edit className="h-4 w-4 mr-2" />
-                Editar
-              </Button>
-              <Button variant="destructive" onClick={onDelete}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Excluir
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
+    <AppLayout breadcrumbs={[
+      { label: "Dashboard", href: "/" },
+      { label: "Clientes", href: "/clients" },
+      { label: client.name }
+    ]}>
+      <div className="mb-4">
+        <Button variant="outline" onClick={() => navigate("/clients")}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Voltar
+        </Button>
+      </div>
+      
+      // ClientDetailsPage.tsx - passe props individualmente
+// ClientDetailsPage.tsx
+import ClientDetailsComponent from "@/components/clients/ClientDetails"
 
-      {/* Contact Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Informações de Contato</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center space-x-3">
-            <Mail className="h-5 w-5 text-muted-foreground" />
-            <span>{client.email}</span>
-          </div>
-          {client.phone && (
-            <div className="flex items-center space-x-3">
-              <Phone className="h-5 w-5 text-muted-foreground" />
-              <span>{client.phone}</span>
-            </div>
-          )}
-          {client.address && (
-            <div className="flex items-center space-x-3">
-              <MapPin className="h-5 w-5 text-muted-foreground" />
-              <span>{client.address}</span>
-            </div>
-          )}
-          {client.document_number && (
-            <div className="flex items-center space-x-3">
-              <FileText className="h-5 w-5 text-muted-foreground" />
-              <span>{client.client_type === 'company' ? 'CNPJ' : 'CPF'}: {client.document_number}</span>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Notes */}
-      {client.notes && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Observações</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground whitespace-pre-wrap">{client.notes}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Metadata */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Informações do Sistema</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <div className="text-sm">
-            <span className="font-medium">Criado em:</span>{' '}
-            {new Date(client.created_at).toLocaleDateString('pt-BR', {
-              day: '2-digit',
-              month: '2-digit', 
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            })}
-          </div>
-          <div className="text-sm">
-            <span className="font-medium">Última atualização:</span>{' '}
-            {new Date(client.updated_at).toLocaleDateString('pt-BR', {
-              day: '2-digit',
-              month: '2-digit',
-              year: 'numeric', 
-              hour: '2-digit',
-              minute: '2-digit'
-            })}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+// E use:
+<ClientDetail
+  client={client}
+  onEdit={handleEdit}
+  onDelete={handleDelete}
+/>
+    </AppLayout>
   )
 }

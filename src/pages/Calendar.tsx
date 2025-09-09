@@ -3,15 +3,43 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Calendar as CalendarIcon, Clock, User, MapPin } from "lucide-react"
-import { mockAppointments } from "@/lib/mockData"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { LawFirmService, LawAppointment } from "@/services/lawFirmService"
+import { AppointmentForm } from "@/components/appointment/AppointmentForm"
 
 export default function Calendar() {
   const [selectedDate, setSelectedDate] = useState(new Date())
-  
+  const [appointments, setAppointments] = useState<LawAppointment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+
+  const fetchAppointments = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const oneMonthFromNow = new Date();
+      oneMonthFromNow.setMonth(oneMonthFromNow.getMonth() + 1);
+      const oneMonthFromNowStr = oneMonthFromNow.toISOString().split('T')[0];
+
+      const fetchedAppointments = await LawFirmService.getAppointmentsByDateRange(today, oneMonthFromNowStr);
+      setAppointments(fetchedAppointments);
+    } catch (err) {
+      setError("Não foi possível carregar os agendamentos. Tente novamente mais tarde.");
+      console.error("Failed to fetch appointments:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAppointments();
+  }, []);
+
   const today = new Date().toISOString().split('T')[0]
-  const todayAppointments = mockAppointments.filter(apt => apt.date === today)
-  const upcomingAppointments = mockAppointments.filter(apt => apt.date > today).slice(0, 5)
+  const todayAppointments = appointments.filter(apt => apt.appointment_date === today)
+  const upcomingAppointments = appointments.filter(apt => apt.appointment_date > today).sort((a, b) => new Date(a.appointment_date).getTime() - new Date(b.appointment_date).getTime()).slice(0, 5)
 
   const getTypeColor = (type: string) => {
     switch (type) {
@@ -39,20 +67,7 @@ export default function Calendar() {
       case 'deadline':
         return 'Prazo'
       default:
-        return type
-    }
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'scheduled':
-        return 'bg-success/10 text-success'
-      case 'completed':
-        return 'bg-muted text-muted-foreground'
-      case 'cancelled':
-        return 'bg-destructive/10 text-destructive'
-      default:
-        return 'bg-muted text-muted-foreground'
+        return 'Outro'
     }
   }
 
@@ -60,163 +75,107 @@ export default function Calendar() {
     switch (status) {
       case 'scheduled':
         return 'Agendado'
+      case 'confirmed':
+        return 'Confirmado'
       case 'completed':
         return 'Concluído'
       case 'cancelled':
         return 'Cancelado'
+      case 'rescheduled':
+        return 'Reagendado'
       default:
         return status
     }
   }
 
+ // No arquivo Calendar.tsx, atualize a função renderAppointments
+const renderAppointments = (appointmentsList: LawAppointment[], title: string) => (
+  <Card className="h-full">
+    <CardHeader>
+      <CardTitle className="text-xl font-bold">{title}</CardTitle>
+    </CardHeader>
+    <CardContent className="space-y-3">
+      {loading && <p>Carregando agendamentos...</p>}
+      {error && <p className="text-destructive">{error}</p>}
+      {!loading && appointmentsList.length === 0 && <p className="text-sm text-muted-foreground">Nenhum agendamento encontrado.</p>}
+      {appointmentsList.map(apt => (
+        <div key={apt.id} className="p-3 border-l-4 border-l-primary bg-primary/5 rounded">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center space-x-2">
+              <Badge className={getTypeColor(apt.appointment_type)}>
+                {getTypeLabel(apt.appointment_type)}
+              </Badge>
+              <Badge variant="outline" className="text-xs">
+                {getStatusLabel(apt.status)}
+              </Badge>
+            </div>
+          </div>
+          <p className="font-medium text-sm">{apt.title}</p>
+          
+          {/* Verificar se client existe e tem propriedade name */}
+          {apt.client && apt.client.name && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Cliente: {apt.client.name}
+            </p>
+          )}
+          
+          {/* Verificar se case existe e tem propriedade title */}
+          {apt.case && apt.case.title && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Caso: {apt.case.title} {apt.case.case_number && `- ${apt.case.case_number}`}
+            </p>
+          )}
+          
+          <p className="text-xs text-muted-foreground mt-1">
+            {new Date(apt.appointment_date).toLocaleDateString('pt-BR')} às {apt.start_time}
+          </p>
+          
+          {apt.location && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Local: {apt.location}
+            </p>
+          )}
+        </div>
+      ))}
+    </CardContent>
+  </Card>
+)
+
   return (
-    <AppLayout breadcrumbs={[
-      { label: "Dashboard", href: "/" },
-      { label: "Agenda" }
-    ]}>
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight">Agenda</h2>
-        <Button className="bg-gradient-primary">
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Agendamento
-        </Button>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CalendarIcon className="h-5 w-5" />
-                Compromissos de Hoje ({todayAppointments.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {todayAppointments.length > 0 ? (
-                todayAppointments.map((appointment) => (
-                  <div key={appointment.id} className="flex items-center justify-between p-4 border rounded-lg hover:shadow-sm transition-shadow">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-semibold">{appointment.title}</h4>
-                        <Badge className={getTypeColor(appointment.type)}>
-                          {getTypeLabel(appointment.type)}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{appointment.description}</p>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-4 w-4" />
-                          <span>{appointment.time}</span>
-                        </div>
-                        {appointment.clientId && (
-                          <div className="flex items-center gap-1">
-                            <User className="h-4 w-4" />
-                            <span>Cliente #{appointment.clientId}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <Badge className={getStatusColor(appointment.status)}>
-                      {getStatusLabel(appointment.status)}
-                    </Badge>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8">
-                  <CalendarIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">Nenhum compromisso para hoje</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                Próximos Compromissos
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {upcomingAppointments.map((appointment) => (
-                <div key={appointment.id} className="flex items-center justify-between p-4 border rounded-lg hover:shadow-sm transition-shadow">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-semibold">{appointment.title}</h4>
-                      <Badge className={getTypeColor(appointment.type)}>
-                        {getTypeLabel(appointment.type)}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">{appointment.description}</p>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <CalendarIcon className="h-4 w-4" />
-                        <span>{new Date(appointment.date).toLocaleDateString('pt-BR')}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-4 w-4" />
-                        <span>{appointment.time}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <Badge className={getStatusColor(appointment.status)}>
-                    {getStatusLabel(appointment.status)}
-                  </Badge>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+    <AppLayout>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="md:col-span-2 space-y-6">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold">Agenda Jurídica</h1>
+            <Button onClick={() => setIsFormOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Novo Evento
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {renderAppointments(todayAppointments, "Agendamentos de Hoje")}
+            {renderAppointments(upcomingAppointments, "Próximos Agendamentos")}
+          </div>
         </div>
 
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Visão Geral</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center p-3 border rounded-lg">
-                  <div className="text-2xl font-bold text-primary">{todayAppointments.length}</div>
-                  <div className="text-sm text-muted-foreground">Hoje</div>
-                </div>
-                <div className="text-center p-3 border rounded-lg">
-                  <div className="text-2xl font-bold text-success">{upcomingAppointments.length}</div>
-                  <div className="text-sm text-muted-foreground">Próximos</div>
-                </div>
-              </div>
-              
-              <div className="space-y-3">
-                <h4 className="font-semibold text-sm">Por Tipo</h4>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Consultas</span>
-                    <Badge variant="outline" className="bg-primary/10 text-primary">2</Badge>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Audiências</span>
-                    <Badge variant="outline" className="bg-destructive/10 text-destructive">1</Badge>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Reuniões</span>
-                    <Badge variant="outline" className="bg-warning/10 text-warning">3</Badge>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
               <CardTitle>Ações Rápidas</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <Button variant="outline" className="w-full justify-start" size="sm">
-                <Plus className="mr-2 h-4 w-4" />
-                Nova Consulta
+            <CardContent className="space-y-3">
+              <Button 
+                variant="outline" 
+                className="w-full justify-start" 
+                size="sm"
+                onClick={() => setIsFormOpen(true)}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                Criar Evento
               </Button>
               <Button variant="outline" className="w-full justify-start" size="sm">
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                Agendar Reunião
+                <User className="mr-2 h-4 w-4" />
+                Adicionar Cliente
               </Button>
               <Button variant="outline" className="w-full justify-start" size="sm">
                 <Clock className="mr-2 h-4 w-4" />
@@ -244,12 +203,18 @@ export default function Calendar() {
               </div>
               <div className="p-3 border-l-4 border-primary bg-primary/5 rounded">
                 <p className="text-sm font-medium">Reunião Cliente</p>
-                <p className="text-xs text-muted-foreground">Maria Silva - Hoje 14:00h</p>
+                <p className="text-xs text-muted-foreground">Com o cliente João da Silva - 14:00h</p>
               </div>
             </CardContent>
           </Card>
         </div>
       </div>
+
+      <AppointmentForm 
+        open={isFormOpen} 
+        onOpenChange={setIsFormOpen} 
+        onAppointmentCreated={fetchAppointments}
+      />
     </AppLayout>
   )
 }

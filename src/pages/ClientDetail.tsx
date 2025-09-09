@@ -1,163 +1,153 @@
-import { useState, useEffect } from "react"
-import { useParams, useNavigate } from "react-router-dom"
-import { AppLayout } from "@/components/layout/AppLayout"
-import { ClientDetails } from "@/components/clients/ClientDetails"
-import { ClientForm } from "@/components/clients/ClientForm"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { LawFirmService, type LawClient } from "@/services/lawFirmService"
-import { useToast } from "@/hooks/use-toast"
-import { Loader2 } from "lucide-react"
+// components/clients/ClientDetails.tsx
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Mail, Phone, Building, MapPin, FileText, Edit, Trash2 } from "lucide-react"
+import { type LawClient } from "@/services/lawFirmService"
 
-export default function ClientDetail() {
-  const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
-  const { toast } = useToast()
-  const [client, setClient] = useState<LawClient | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [showEditDialog, setShowEditDialog] = useState(false)
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+interface ClientDetailsProps {
+  client: LawClient;
+  onEdit: () => void;
+  onDelete: () => void;
+}
 
-  useEffect(() => {
-    if (id) {
-      loadClient()
-    }
-  }, [id])
-
-  const loadClient = async () => {
-    if (!id) return
-    
-    try {
-      const clients = await LawFirmService.getClients()
-      const foundClient = clients.find(c => c.id === id)
-      if (foundClient) {
-        setClient(foundClient)
-      } else {
-        toast({
-          title: "Erro",
-          description: "Cliente não encontrado",
-          variant: "destructive"
-        })
-        navigate("/clients")
-      }
-    } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Não foi possível carregar o cliente",
-        variant: "destructive"
-      })
-      navigate("/clients")
-    } finally {
-      setLoading(false)
+export default function ClientDetails({ client, onEdit, onDelete }: ClientDetailsProps) {
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active':
+        return 'bg-success/10 text-success'
+      case 'inactive':
+        return 'bg-muted text-muted-foreground'
+      case 'potential':
+        return 'bg-warning/10 text-warning'
+      default:
+        return 'bg-muted text-muted-foreground'
     }
   }
 
-  const handleEdit = () => {
-    setShowEditDialog(true)
-  }
-
-  const handleEditSuccess = () => {
-    setShowEditDialog(false)
-    loadClient()
-  }
-
-  const handleDelete = () => {
-    setShowDeleteDialog(true)
-  }
-
-  const handleDeleteConfirm = async () => {
-    if (!client) return
-
-    try {
-      await LawFirmService.deleteClient(client.id)
-      toast({
-        title: "Sucesso",
-        description: "Cliente excluído com sucesso"
-      })
-      navigate("/clients")
-    } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Não foi possível excluir o cliente",
-        variant: "destructive"
-      })
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'active':
+        return 'Ativo'
+      case 'inactive':
+        return 'Inativo'
+      case 'potential':
+        return 'Potencial'
+      default:
+        return status
     }
-    setShowDeleteDialog(false)
-  }
-
-  if (loading) {
-    return (
-      <AppLayout breadcrumbs={[
-        { label: "Dashboard", href: "/" },
-        { label: "Clientes", href: "/clients" },
-        { label: "Carregando..." }
-      ]}>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
-      </AppLayout>
-    )
-  }
-
-  if (!client) {
-    return (
-      <AppLayout breadcrumbs={[
-        { label: "Dashboard", href: "/" },
-        { label: "Clientes", href: "/clients" },
-        { label: "Cliente não encontrado" }
-      ]}>
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Cliente não encontrado.</p>
-        </div>
-      </AppLayout>
-    )
   }
 
   return (
-    <AppLayout breadcrumbs={[
-      { label: "Dashboard", href: "/" },
-      { label: "Clientes", href: "/clients" },
-      { label: client.name }
-    ]}>
-      <ClientDetails 
-        client={client}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-      />
+    <div className="space-y-6">
+      {/* Header */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <Avatar className="h-16 w-16">
+                <AvatarFallback className="text-lg">
+                  {client.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <CardTitle className="text-2xl">{client.name}</CardTitle>
+                <div className="flex items-center space-x-2 mt-2">
+                  <Badge className={getStatusColor(client.status)}>
+                    {getStatusLabel(client.status)}
+                  </Badge>
+                  <Badge variant="outline">
+                    {client.client_type === 'company' ? 'Empresa' : 'Pessoa Física'}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+            <div className="flex space-x-2">
+              <Button variant="outline" onClick={onEdit}>
+                <Edit className="h-4 w-4 mr-2" />
+                Editar
+              </Button>
+              <Button variant="destructive" onClick={onDelete}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Excluir
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
 
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Editar Cliente</DialogTitle>
-          </DialogHeader>
-          <ClientForm
-            client={client}
-            onSuccess={handleEditSuccess}
-            onCancel={() => setShowEditDialog(false)}
-          />
-        </DialogContent>
-      </Dialog>
+      {/* Contact Information */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Informações de Contato</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center space-x-3">
+            <Mail className="h-5 w-5 text-muted-foreground" />
+            <span>{client.email}</span>
+          </div>
+          {client.phone && (
+            <div className="flex items-center space-x-3">
+              <Phone className="h-5 w-5 text-muted-foreground" />
+              <span>{client.phone}</span>
+            </div>
+          )}
+          {client.address && (
+            <div className="flex items-center space-x-3">
+              <MapPin className="h-5 w-5 text-muted-foreground" />
+              <span>{client.address}</span>
+            </div>
+          )}
+          {client.document_number && (
+            <div className="flex items-center space-x-3">
+              <FileText className="h-5 w-5 text-muted-foreground" />
+              <span>{client.client_type === 'company' ? 'CNPJ' : 'CPF'}: {client.document_number}</span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir o cliente "{client.name}"? 
-              Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={handleDeleteConfirm}
-            >
-              Excluir
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </AppLayout>
+      {/* Notes */}
+      {client.notes && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Observações</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground whitespace-pre-wrap">{client.notes}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Metadata */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Informações do Sistema</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div className="text-sm">
+            <span className="font-medium">Criado em:</span>{' '}
+            {new Date(client.created_at).toLocaleDateString('pt-BR', {
+              day: '2-digit',
+              month: '2-digit', 
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            })}
+          </div>
+          <div className="text-sm">
+            <span className="font-medium">Última atualização:</span>{' '}
+            {new Date(client.updated_at).toLocaleDateString('pt-BR', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric', 
+              hour: '2-digit',
+              minute: '2-digit'
+            })}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

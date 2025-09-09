@@ -135,7 +135,7 @@ export function DocumentDetails({ document, onEdit, onDelete }: DocumentDetailsP
       if (document.encrypted && document.encryption_key) {
         // Download do arquivo criptografado
         const { data, error } = await supabase.storage
-          .from('legal-documents')
+          .from('documents')
           .download(document.file_path)
 
         if (error) throw error
@@ -194,19 +194,19 @@ export function DocumentDetails({ document, onEdit, onDelete }: DocumentDetailsP
     }
   }
 
-  const handleDownload = () => {
-    if (document.encrypted) {
-      setActionType('download')
-      setShowPasswordDialog(true)
-    } else {
-      const a = window.document.createElement('a')
-      a.href = document.file_path
-      a.download = document.name
-      window.document.body.appendChild(a)
-      a.click()
-      window.document.body.removeChild(a)
-    }
+ const handleDownload = () => {
+  if (document.encrypted) {
+    setActionType('download')
+    setShowPasswordDialog(true)
+  } else {
+    const a = window.document.createElement('a')
+    a.href = document.file_path
+    a.download = document.name
+    window.document.body.appendChild(a)
+    a.click()
+    window.document.body.removeChild(a)
   }
+}
 
   const handleDeleteClick = () => {
     setActionType('delete')

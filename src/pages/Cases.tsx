@@ -1,86 +1,88 @@
-import { AppLayout } from "@/components/layout/AppLayout"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { Plus, Search, DollarSign, Calendar, User } from "lucide-react"
-import { Input } from "@/components/ui/input"
-import { LawFirmService, type LawCase } from "@/services/lawFirmService"
-import { useState, useEffect } from "react"
-import { useToast } from "@/hooks/use-toast"
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { LawFirmService, type LawCase } from "@/services/lawFirmService";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader2, Plus, Calendar, DollarSign, Scale } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CaseForm } from "@/components/cases/CaseForm";
+import { Badge } from "@/components/ui/badge";
 
-export default function Cases() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [cases, setCases] = useState<LawCase[]>([])
-  const [loading, setLoading] = useState(true)
-  const { toast } = useToast()
-  
-  useEffect(() => {
-    loadCases()
-  }, [])
+export function Cases() {
+  const [cases, setCases] = useState<LawCase[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showNewCaseDialog, setShowNewCaseDialog] = useState(false);
+  const { toast } = useToast();
 
-  const loadCases = async () => {
+  const fetchCases = async () => {
     try {
-      const data = await LawFirmService.getCases()
-      setCases(data)
+      setLoading(true);
+      const fetchedCases = await LawFirmService.getCases();
+      setCases(fetchedCases);
     } catch (error) {
       toast({
-        title: "Erro",
-        description: "Não foi possível carregar os casos",
-        variant: "destructive"
-      })
+        title: "Erro ao carregar os casos",
+        description: "Não foi possível carregar a lista de casos. Tente novamente mais tarde.",
+        variant: "destructive",
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
-  
-  const filteredCases = cases.filter(case_ =>
-    case_.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    case_.case_type.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  };
+
+  useEffect(() => {
+    fetchCases();
+  }, []);
+
+  const handleNewCaseSuccess = () => {
+    setShowNewCaseDialog(false);
+    fetchCases(); // Recarrega a lista após criar um novo caso
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'open':
-        return 'bg-success/10 text-success'
-      case 'pending':
-        return 'bg-warning/10 text-warning'
+        return 'bg-emerald-100 text-emerald-700 border-emerald-200'
+      case 'in_progress':
+        return 'bg-blue-100 text-blue-700 border-blue-200'
       case 'closed':
-        return 'bg-muted text-muted-foreground'
-      case 'reviewing':
-        return 'bg-primary/10 text-primary'
+        return 'bg-gray-100 text-gray-700 border-gray-200'
+      case 'archived':
+        return 'bg-slate-100 text-slate-700 border-slate-200'
       default:
-        return 'bg-muted text-muted-foreground'
-    }
-  }
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'urgent':
-        return 'bg-destructive text-destructive-foreground'
-      case 'high':
-        return 'bg-orange-500/10 text-orange-600'
-      case 'medium':
-        return 'bg-warning/10 text-warning'
-      case 'low':
-        return 'bg-muted text-muted-foreground'
-      default:
-        return 'bg-muted text-muted-foreground'
+        return 'bg-gray-100 text-gray-700 border-gray-200'
     }
   }
 
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'open':
-        return 'Ativo'
-      case 'pending':
-        return 'Pendente'
+        return 'Aberto'
+      case 'in_progress':
+        return 'Em Progresso'
       case 'closed':
         return 'Fechado'
-      case 'reviewing':
-        return 'Em Revisão'
+      case 'archived':
+        return 'Arquivado'
       default:
         return status
+    }
+  }
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'urgent':
+        return 'bg-red-100 text-red-700 border-red-200'
+      case 'high':
+        return 'bg-orange-100 text-orange-700 border-orange-200'
+      case 'medium':
+        return 'bg-yellow-100 text-yellow-700 border-yellow-200'
+      case 'low':
+        return 'bg-green-100 text-green-700 border-green-200'
+      default:
+        return 'bg-gray-100 text-gray-700 border-gray-200'
     }
   }
 
@@ -99,135 +101,162 @@ export default function Cases() {
     }
   }
 
-  const getProgressValue = (status: string) => {
-    switch (status) {
-      case 'open':
-        return 25
-      case 'pending':
-        return 50
-      case 'reviewing':
-        return 75
-      case 'closed':
-        return 100
+  const getCaseTypeLabel = (type: string) => {
+    switch (type) {
+      case 'civil':
+        return 'Civil'
+      case 'criminal':
+        return 'Criminal'
+      case 'family':
+        return 'Família'
+      case 'commercial':
+        return 'Comercial'
+      case 'labor':
+        return 'Trabalhista'
+      case 'tax':
+        return 'Tributário'
+      case 'administrative':
+        return 'Administrativo'
+      case 'constitutional':
+        return 'Constitucional'
+      case 'environmental':
+        return 'Ambiental'
+      case 'consumer':
+        return 'Consumidor'
+      case 'real_estate':
+        return 'Imobiliário'
+      case 'intellectual_property':
+        return 'Propriedade Intelectual'
+      case 'bankruptcy':
+        return 'Falência e Recuperação'
+      case 'immigration':
+        return 'Imigração'
+      case 'other':
+        return 'Outros'
       default:
-        return 0
+        return type
     }
   }
 
+  if (loading) {
+    return (
+      <AppLayout
+        breadcrumbs={[
+          { label: "Dashboard", href: "/" },
+          { label: "Casos" },
+        ]}
+      >
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </AppLayout>
+    );
+  }
+
   return (
-    <AppLayout breadcrumbs={[
-      { label: "Dashboard", href: "/" },
-      { label: "Casos" }
-    ]}>
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight">Casos</h2>
-        <Button className="bg-gradient-primary">
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Caso
+    <AppLayout
+      breadcrumbs={[
+        { label: "Dashboard", href: "/" },
+        { label: "Casos" },
+      ]}
+    >
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-3xl font-bold">Gestão de Casos</h1>
+        <Button onClick={() => setShowNewCaseDialog(true)} className="bg-blue-600 hover:bg-blue-700">
+          <Plus className="mr-2 h-4 w-4" /> Novo Caso
         </Button>
       </div>
 
-      <div className="flex items-center space-x-2">
-        <Search className="h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar casos..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-sm"
-        />
+      <p className="text-muted-foreground mb-6">
+        Visualize, crie e gerencie todos os casos do escritório.
+      </p>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {cases.length === 0 ? (
+          <div className="col-span-full text-center py-12">
+            <Scale className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-muted-foreground text-lg">Nenhum caso encontrado.</p>
+            <p className="text-sm text-muted-foreground mt-2">Clique em "Novo Caso" para começar.</p>
+          </div>
+        ) : (
+          cases.map((caseItem) => (
+            <Link key={caseItem.id} to={`/cases/${caseItem.id}`} className="group">
+              <Card className="h-full transition-all duration-300 ease-in-out hover:shadow-lg hover:shadow-blue-100 hover:border-blue-200 hover:-translate-y-1 cursor-pointer border border-gray-200">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between mb-2">
+                    <CardTitle className="text-lg font-semibold text-gray-900 group-hover:text-blue-700 transition-colors line-clamp-2">
+                      {caseItem.title}
+                    </CardTitle>
+                  </div>
+                  <CardDescription className="text-sm text-gray-600 font-medium">
+                    Nº {caseItem.case_number}
+                  </CardDescription>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <Badge className={`text-xs font-medium ${getStatusColor(caseItem.status)}`}>
+                      {getStatusLabel(caseItem.status)}
+                    </Badge>
+                    <Badge className={`text-xs font-medium ${getPriorityColor(caseItem.priority)}`}>
+                      {getPriorityLabel(caseItem.priority)}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="space-y-3">
+                    <div className="flex items-center text-sm text-gray-600">
+                      <Scale className="h-4 w-4 mr-2 text-gray-400" />
+                      <span className="font-medium">{getCaseTypeLabel(caseItem.case_type)}</span>
+                    </div>
+                    
+                    {caseItem.value && (
+                      <div className="flex items-center text-sm text-gray-600">
+                        <DollarSign className="h-4 w-4 mr-2 text-gray-400" />
+                        <span>
+                          {new Intl.NumberFormat('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL',
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0
+                          }).format(Number(caseItem.value))}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {caseItem.start_date && (
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Calendar className="h-4 w-4 mr-2 text-gray-400" />
+                        <span>
+                          {new Date(caseItem.start_date).toLocaleDateString('pt-BR')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {caseItem.description && (
+                    <div className="mt-4 pt-3 border-t border-gray-100">
+                      <p className="text-sm text-gray-600 line-clamp-2">
+                        {caseItem.description}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </Link>
+          ))
+        )}
       </div>
 
-      {loading ? (
-        <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i} className="animate-pulse">
-              <CardHeader className="pb-3">
-                <div className="h-5 bg-muted rounded w-3/4 mb-2"></div>
-                <div className="h-3 bg-muted rounded w-1/2"></div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="h-3 bg-muted rounded w-full"></div>
-                  <div className="h-3 bg-muted rounded w-2/3"></div>
-                  <div className="h-2 bg-muted rounded w-full"></div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
-          {filteredCases.map((case_) => (
-          <Card key={case_.id} className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="space-y-1">
-                  <CardTitle className="text-lg">{case_.title}</CardTitle>
-                  <p className="text-sm text-muted-foreground">{case_.case_type}</p>
-                </div>
-                <div className="flex flex-col items-end space-y-2">
-                  <Badge className={getStatusColor(case_.status)}>
-                    {getStatusLabel(case_.status)}
-                  </Badge>
-                  <Badge variant="outline" className={getPriorityColor(case_.priority)}>
-                    {getPriorityLabel(case_.priority)}
-                  </Badge>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm">{case_.description}</p>
-              
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span>Progresso</span>
-                  <span>{getProgressValue(case_.status)}%</span>
-                </div>
-                <Progress value={getProgressValue(case_.status)} className="h-2" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div className="flex items-center space-x-2">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <span>#{case_.case_number}</span>
-                </div>
-                {case_.value && (
-                  <div className="flex items-center space-x-2">
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
-                    <span>R$ {case_.value.toLocaleString('pt-BR')}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <div className="flex items-center space-x-2">
-                  <Calendar className="h-4 w-4" />
-                  <span>Criado: {new Date(case_.created_at).toLocaleDateString('pt-BR')}</span>
-                </div>
-                {case_.expected_end_date && (
-                  <div className="flex items-center space-x-2">
-                    <Calendar className="h-4 w-4" />
-                    <span>Prazo: {new Date(case_.expected_end_date).toLocaleDateString('pt-BR')}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex space-x-2 pt-2 border-t">
-                <Button variant="outline" size="sm" className="flex-1" onClick={() => window.location.href = `/cases/${case_.id}`}>
-                  Ver Detalhes
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-        </div>
-      )}
-
-      {filteredCases.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Nenhum caso encontrado.</p>
-        </div>
-      )}
+      <Dialog open={showNewCaseDialog} onOpenChange={setShowNewCaseDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Criar Novo Caso</DialogTitle>
+          </DialogHeader>
+          <CaseForm
+            onSuccess={handleNewCaseSuccess}
+            onCancel={() => setShowNewCaseDialog(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </AppLayout>
-  )
+  );
 }
+
