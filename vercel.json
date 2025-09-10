@@ -1,8 +1,6 @@
 {
   "build": {
-    "env": {
-      "NODE_ENV": "production"
-    },
+    "env": {},
     "commands": {
       "install": "pnpm install --no-frozen-lockfile"
     }
