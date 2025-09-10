@@ -16,7 +16,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
 } from "@/components/ui/dialog"
 import { ClientForm } from "@/components/clients/ClientForm"
 import {
@@ -29,13 +28,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-
 import ClientDetails from "@/pages/ClientDetail"
-
-// Assumindo que a interface AppLayoutProps está definida no arquivo do componente
-interface AppLayoutProps {
-  title: string
-}
+import { WhatsAppButton } from "@/components/utils/WhatsAppButton"
 
 export default function Clients() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -55,8 +49,13 @@ export default function Clients() {
       setClients(clientsData)
 
       const casesDataPromises = clientsData.map(async (client) => {
-        const cases = await LawFirmService.getCasesByClient(client.id)
-        return { clientId: client.id, cases }
+        try {
+          const cases = await LawFirmService.getCasesByClient(client.id)
+          return { clientId: client.id, cases }
+        } catch (error) {
+          console.error(`Erro ao carregar casos do cliente ${client.id}:`, error)
+          return { clientId: client.id, cases: [] }
+        }
       })
 
       const allCasesData = await Promise.all(casesDataPromises)
@@ -121,128 +120,179 @@ export default function Clients() {
   const filteredClients = clients.filter(client =>
     client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.phone.includes(searchTerm)
+    (client.phone && client.phone.includes(searchTerm)) ||
+    (client.document_number && client.document_number.includes(searchTerm))
   )
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active': return 'bg-green-100 text-green-800'
+      case 'inactive': return 'bg-gray-100 text-gray-600'
+      case 'potential': return 'bg-yellow-100 text-yellow-800'
+      default: return 'bg-gray-100 text-gray-600'
+    }
+  }
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'active': return 'Ativo'
+      case 'inactive': return 'Inativo'
+      case 'potential': return 'Potencial'
+      default: return status
+    }
+  }
+
   return (
-    <AppLayout title="Clientes">
-      <div className="flex justify-between items-center mb-6">
-        <div className="relative flex-1 max-w-lg">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar clientes..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
-          />
+    <AppLayout 
+    title="Clientes"
+    breadcrumbs={[
+      { label: "Dashboard", href: "/" },
+      { label: "Clientes" }
+    ]}>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Clientes</h2>
+          <p className="text-muted-foreground">Gerencie seus clientes e visualize informações</p>
         </div>
-        <Button onClick={() => setShowCreateModal(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Cliente
-        </Button>
+        
+        <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+          <DialogTrigger asChild>
+            <Button className="bg-gradient-primary w-full sm:w-auto">
+              <Plus className="mr-2 h-4 w-4" />
+              Novo Cliente
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Novo Cliente</DialogTitle>
+              <DialogDescription>
+                Preencha os dados do novo cliente
+              </DialogDescription>
+            </DialogHeader>
+            <ClientForm
+              onCancel={() => setShowCreateModal(false)}
+              onSuccess={handleClientFormSuccess}
+            />
+          </DialogContent>
+        </Dialog>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {loading ? (
-          Array.from({ length: 6 }).map((_, index) => (
-            <Card key={index} className="animate-pulse">
-              <CardHeader>
-                <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
-                <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+      {/* Busca */}
+      <Card className="mb-6">
+        <CardContent className="p-4 sm:p-6">
+          <div className="flex items-center space-x-2">
+            <Search className="h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar clientes por nome, email, telefone ou documento..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="flex-1"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {loading ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i} className="animate-pulse">
+              <CardHeader className="pb-3">
+                <div className="h-4 bg-muted rounded w-3/4"></div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  <div className="h-4 bg-gray-200 rounded w-full"></div>
-                  <div className="h-4 bg-gray-200 rounded w-full"></div>
+                  <div className="h-3 bg-muted rounded w-full"></div>
+                  <div className="h-3 bg-muted rounded w-2/3"></div>
                 </div>
               </CardContent>
             </Card>
-          ))
-        ) : filteredClients.length > 0 ? (
-          filteredClients.map((client) => (
-            <Card key={client.id} className="shadow-sm hover:shadow-md transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-xl font-bold">
-                  {client.name}
-                </CardTitle>
-                <Badge variant="secondary">{client.client_type}</Badge>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex items-center text-sm text-muted-foreground">
-                  <Mail className="mr-2 h-4 w-4" />
-                  <span>{client.email}</span>
-                </div>
-                <div className="flex items-center text-sm text-muted-foreground">
-                  <Phone className="mr-2 h-4 w-4" />
-                  <span>{client.phone}</span>
-                </div>
-                <div className="flex items-center text-sm text-muted-foreground">
-                  <Briefcase className="mr-2 h-4 w-4" />
-                  <span className="font-medium">
-                    {casesByClient[client.id]?.length || 0} Casos
-                  </span>
-                </div>
-                <div className="pt-4 flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => handleViewClientDetails(client)}
-                  >
-                    <Eye className="mr-2 h-4 w-4" />
-                    Ver Detalhe
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => {
-                      setSelectedClient(client);
-                      setShowDeleteModal(true);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        ) : (
-          <div className="col-span-full text-center py-12">
-            <p className="text-muted-foreground">
-              {clients.length === 0
-                ? "Nenhum cliente encontrado."
-                : `Nenhum cliente encontrado para "${searchTerm}".`}
-            </p>
+          ))}
+        </div>
+      ) : (
+       
+<div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+  {filteredClients.map((client) => (
+    <Card key={client.id} className="hover:shadow-md transition-shadow w-full">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center space-x-3 min-w-0">
+            <Avatar>
+              <AvatarFallback className="bg-primary/10 text-primary">
+                {client.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+              </AvatarFallback>
+            </Avatar>
+            <CardTitle className="text-lg truncate">{client.name}</CardTitle>
           </div>
-        )}
-      </div>
+          <Badge className={getStatusColor(client.status)}>
+            {getStatusLabel(client.status)}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex items-center space-x-2 text-sm text-muted-foreground break-words">
+          <Mail className="h-4 w-4" />
+          <span className="truncate">{client.email}</span>
+        </div>
+       {client.phone && (
+  <div className="flex items-center justify-between text-sm text-muted-foreground">
+    <div className="flex items-center space-x-2 min-w-0">
+      <Phone className="h-4 w-4 shrink-0" />
+      <span className="truncate">{client.phone}</span>
+    </div>
+    <WhatsAppButton
+  phoneNumber={client.phone}
+  size="icon"
+  variant="ghost"
+  message={`Olá ${client.name}, tudo bem?`}
+/>
+  </div>
+)}
 
-      {/* Modal de Criação de Cliente */}
-      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Novo Cliente</DialogTitle>
-            <DialogDescription>
-              Preencha os dados do novo cliente para adicioná-lo ao sistema.
-            </DialogDescription>
-          </DialogHeader>
-          <ClientForm onSuccess={handleClientFormSuccess} onCancel={() => setShowCreateModal(false)}/>
-        </DialogContent>
-      </Dialog>
+        <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+          <Briefcase className="h-4 w-4" />
+          <span className="truncate">
+            {casesByClient[client.id]?.length > 0
+              ? `${casesByClient[client.id].length} caso(s)`
+              : "Nenhum caso"}
+          </span>
+        </div>
+        <div className="pt-3 border-t">
+          <p className="text-xs text-muted-foreground">
+            Cliente desde: {new Date(client.created_at).toLocaleDateString('pt-BR')}
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            onClick={() => handleViewClientDetails(client)}
+          >
+            <Eye className="mr-1 h-3 w-3" />
+            Ver Detalhes
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  ))}
+</div>
 
-      {/* Modal de Detalhes do Cliente */}
+      )}
+
+      {/* Modal de Detalhes do Cliente - REMOVIDO O BOTÃO DE FECHAR DUPLICADO */}
       <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detalhes do Cliente</DialogTitle>
-            <DialogDescription>
-              Informações completas do cliente e seus casos relacionados.
-            </DialogDescription>
           </DialogHeader>
+
           {selectedClient && (
             <ClientDetails
               client={selectedClient}
-              onEdit={handleClientFormSuccess}
+              onEdit={() => {
+                setShowDetailsModal(false)
+                // Aqui você pode abrir um modal de edição se necessário
+              }}
               onDelete={() => {
                 setShowDetailsModal(false)
                 setShowDeleteModal(true)
@@ -257,15 +307,15 @@ export default function Clients() {
       <AlertDialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação não pode ser desfeita. Isso excluirá permanentemente o cliente
-              selecionado.
+              Tem certeza que deseja excluir o cliente "{selectedClient?.name}"? 
+              Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
+            <AlertDialogAction 
               onClick={handleDeleteClient}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
@@ -274,6 +324,30 @@ export default function Clients() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {!loading && clients.length === 0 && (
+        <div className="text-center py-12">
+          <div className="mx-auto w-20 h-20 bg-muted rounded-full flex items-center justify-center mb-4">
+            <Building className="h-10 w-10 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-medium mb-2">Nenhum cliente encontrado</h3>
+          <p className="text-muted-foreground mb-4">
+            Comece adicionando seu primeiro cliente.
+          </p>
+          <Button onClick={() => setShowCreateModal(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo Cliente
+          </Button>
+        </div>
+      )}
+
+      {!loading && filteredClients.length === 0 && clients.length > 0 && (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">
+            Nenhum cliente encontrado para "{searchTerm}".
+          </p>
+        </div>
+      )}
     </AppLayout>
   )
 }

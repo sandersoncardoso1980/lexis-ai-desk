@@ -144,16 +144,83 @@ const legalResearch = async (prompt: string): Promise<{ content: string }> => {
 // -----------------------------
 const detectIntention = (message: string): { intention: string; query: string } => {
   const normalized = message.toLowerCase();
-  if (/(gerar|criar|elaborar|fazer).*(petição|peti..o|inicial|defesa|recurso)/i.test(normalized)) return { intention: "generate_petition", query: message };
-  if (/(gerar|criar|elaborar|fazer).*(contrato|honorários|honorario)/i.test(normalized)) return { intention: "generate_contract", query: message };
-  if (/(gerar|criar|elaborar|fazer).*(procura..o|procuracao)/i.test(normalized)) return { intention: "generate_proxy", query: message };
-  if (/(pesquisar|buscar|jurisprudência|sumula|artigo|lei|tese|precedente)/i.test(normalized)) return { intention: "legal_research", query: message };
-  if (/(tarefas|tasks).*(hoje|dia|today)/i.test(normalized)) return { intention: "today_tasks", query: "" };
-  if (/(agendamentos|compromissos).*(hoje|dia|today)/i.test(normalized)) return { intention: "today_appointments", query: "" };
-  if (/(tarefas|tasks).*(pendentes|pendente)/i.test(normalized)) return { intention: "pending_tasks", query: "" };
-  if (/(cliente|clientes)/i.test(normalized)) return { intention: "search_client", query: normalized.replace(/.*(cliente|clientes)/i, "").trim() };
-  if (/(documento|documentos)/i.test(normalized)) return { intention: "search_documents", query: normalized.replace(/.*(documento|documentos)/i, "").trim() };
+
+  // Geração de documentos primeiro (prioridade alta)
+  if (/(gerar|criar|elaborar|fazer|gere).*(petição|peti..o|inicial|defesa|recurso)/i.test(normalized))
+    return { intention: "generate_petition", query: message };
+
+  if (/(gerar|criar|elaborar|fazer|gere).*(contrato|honorários|honorario)/i.test(normalized))
+    return { intention: "generate_contract", query: message };
+
+  if (/(gerar|criar|elaborar|fazer|gere).*(procura..o|procuracao)/i.test(normalized))
+    return { intention: "generate_proxy", query: message };
+
+  // Pesquisa jurídica
+  if (/(pesquisar|buscar|jurisprudência|sumula|artigo|lei|tese|precedente)/i.test(normalized))
+    return { intention: "legal_research", query: message };
+
+  // Rotinas de agenda/tarefas
+  if (/(tarefas|tasks).*(hoje|dia|today)/i.test(normalized))
+    return { intention: "today_tasks", query: "" };
+
+  if (/(agendamentos|compromissos).*(hoje|dia|today)/i.test(normalized))
+    return { intention: "today_appointments", query: "" };
+
+  if (/(tarefas|tasks).*(pendentes|pendente)/i.test(normalized))
+    return { intention: "pending_tasks", query: "" };
+
+  // Busca de cliente e documentos (só se não cair nos anteriores)
+  if (/(cliente|clientes)/i.test(normalized))
+    return { intention: "search_client", query: normalized.replace(/.*(cliente|clientes)/i, "").trim() };
+
+  if (/(documento|documentos)/i.test(normalized))
+    return { intention: "search_documents", query: normalized.replace(/.*(documento|documentos)/i, "").trim() };
+
   return { intention: "general_question", query: message };
+};
+const enrichWithContext = async (query: string): Promise<string> => {
+  let enriched = query;
+  const match = query.match(/cliente\s+([a-zÀ-ú]+)/i);
+
+  if (match) {
+    const clientName = match[1];
+    const { data: client } = await supabase
+      .from("law_clients")
+      .select("*")
+      .ilike("name", `%${clientName}%`)
+      .single();
+
+    if (client) {
+      enriched += `\n\n📌 Dados do Cliente:\nNome: ${client.name}\nCPF/CNPJ: ${client.document_number}\nEmail: ${client.email}\nTelefone: ${client.phone}`;
+
+      // Casos do cliente
+      const { data: cases } = await supabase
+        .from("law_cases")
+        .select("*")
+        .or(`client_id.eq.${client.id},involved_clients.cs.{${client.id}}`);
+
+      if (cases?.length) {
+        enriched += `\n\n📂 Casos relacionados:\n${cases
+          .map((c: any) => `• ${c.title} (${c.status}) - Nº ${c.case_number}`)
+          .join("\n")}`;
+      }
+
+      // Documentos do cliente
+      const { data: docs } = await supabase
+        .from("law_documents")
+        .select("*")
+        .or(`client_id.eq.${client.id},related_clients.cs.{${client.id}}`)
+        .limit(5);
+
+      if (docs?.length) {
+        enriched += `\n\n📄 Documentos vinculados:\n${docs
+          .map((d: any) => `• ${d.name} (${d.status})`)
+          .join("\n")}`;
+      }
+    }
+  }
+
+  return enriched;
 };
 
 // -----------------------------
@@ -207,6 +274,27 @@ export default function AIAssistant() {
 
     try {
       switch (intention) {
+         case "generate_petition": {
+    const enrichedQuery = await enrichWithContext(query);
+    res = await generatePetition(enrichedQuery);
+    break;
+  }
+  case "generate_contract": {
+    const enrichedQuery = await enrichWithContext(query);
+    res = await generateContract(enrichedQuery);
+    break;
+  }
+  case "generate_proxy": {
+    const enrichedQuery = await enrichWithContext(query);
+    res = await generateProxy(enrichedQuery);
+    break;
+  }
+  case "legal_research": {
+    const enrichedQuery = await enrichWithContext(query);
+    res = await legalResearch(enrichedQuery);
+    break;
+  }
+
         case "generate_petition":
           res = await generatePetition(query);
           break;
@@ -291,7 +379,9 @@ export default function AIAssistant() {
   };
 
   return (
-    <AppLayout breadcrumbs={[{ label: "Dashboard", href: "/" }, { label: "Spector IA" }]}>
+    <AppLayout 
+    title="Spector IA"
+    breadcrumbs={[{ label: "Dashboard", href: "/" }, { label: "Spector IA" }]}>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
         <div className="flex items-center justify-between w-full">
           <div>

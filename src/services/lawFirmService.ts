@@ -55,6 +55,65 @@ export class LawFirmService {
     if (error) throw error
     return data
   }
+static async createAppointment(appointmentData: Omit<LawAppointment, 'id' | 'created_at' | 'updated_at' | 'user_id'>): Promise<LawAppointment> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const cleanedData = {
+    ...appointmentData,
+    client_id: appointmentData.client_id === "" ? null : appointmentData.client_id,
+    case_id: appointmentData.case_id === "" ? null : appointmentData.case_id,
+    user_id: user.id
+  };
+
+  const { data, error } = await supabase
+    .from('law_appointments')
+    .insert(cleanedData)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Supabase error during createAppointment:", error);
+    throw error;
+  }
+  return data;
+}
+
+
+
+  static async getProfile(userId: string): Promise<any> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  static async createProfile(profileData: any): Promise<any> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .insert([profileData])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  static async updateProfile(profileId: string, profileData: any): Promise<any> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(profileData)
+      .eq('id', profileId)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
 
   static async createClient(clientData: Omit<LawClient, 'id' | 'created_at' | 'updated_at' | 'user_id'>): Promise<LawClient> {
     const { data: { user } } = await supabase.auth.getUser()
