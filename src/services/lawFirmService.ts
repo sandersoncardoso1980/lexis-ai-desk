@@ -1,5 +1,10 @@
 import { supabase } from '@/integrations/supabase/client'
 import type { Database } from '@/integrations/supabase/types'
+import * as pdfjs from 'pdfjs-dist';
+
+// Adicione esta linha de configuração
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
 
 // Types using database schema
 export type LawClient = Database['public']['Tables']['law_clients']['Row']
@@ -18,6 +23,14 @@ export type NewLawCase = Omit<
   'id' | 'created_at' | 'updated_at' | 'user_id' | 'actual_end_date'
 > & {
   actual_end_date?: string | null
+}
+
+// Interface para metadados de criptografia
+export interface EncryptionMetadata {
+  iv: string;
+  salt: string;
+  algorithm: string;
+  keyDerivation: string;
 }
 
 export class LawFirmService {
@@ -57,17 +70,30 @@ export class LawFirmService {
     return data
   }
 
-  static async updateClient(id: string, updates: Partial<LawClient>): Promise<LawClient> {
-    const { data, error } = await supabase
-      .from('law_clients')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single()
+static async updateClient(id: string, updates: Partial<LawClient>): Promise<LawClient> {
+  const cleanedUpdates: any = {}
 
-    if (error) throw error
-    return data
-  }
+  // só inclui se o valor não for string vazia e não for undefined
+  Object.entries(updates).forEach(([key, value]) => {
+    if (value !== "" && value !== undefined) {
+      cleanedUpdates[key] = value
+    }
+  })
+
+  // força updated_at
+  cleanedUpdates.updated_at = new Date().toISOString()
+
+  const { data, error } = await supabase
+    .from('law_clients')
+    .update(cleanedUpdates)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
 
   static async deleteClient(id: string): Promise<void> {
     const { error } = await supabase
@@ -76,6 +102,19 @@ export class LawFirmService {
       .eq('id', id)
     if (error) throw error
   }
+  static async getCasesByClient(clientId: string): Promise<LawCase[]> {
+  const { data, error } = await supabase
+    .from('law_cases')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data || []
+}
+
+
+
 
   // --- Cases ---
   static async getCases(): Promise<LawCase[]> {
@@ -224,33 +263,29 @@ export class LawFirmService {
     return data
   }
 
- // No arquivo lawFirmService.ts, atualize o método updateTask
-static async updateTask(id: string, updates: Partial<LawTask>): Promise<LawTask> {
-  // Converter campos UUID vazios para null
-  const cleanedUpdates: Partial<LawTask> = { ...updates };
-  
-  // Campos que devem ser UUID ou null
-  const uuidFields = ['assigned_to', 'case_id', 'client_id'] as const;
-  
-  uuidFields.forEach(field => {
-    if (field in cleanedUpdates && cleanedUpdates[field] === '') {
-      cleanedUpdates[field] = null;
-    }
-  });
+  static async updateTask(id: string, updates: Partial<LawTask>): Promise<LawTask> {
+    const cleanedUpdates: Partial<LawTask> = { ...updates };
+    
+    const uuidFields = ['assigned_to', 'case_id', 'client_id'] as const;
+    
+    uuidFields.forEach(field => {
+      if (field in cleanedUpdates && cleanedUpdates[field] === '') {
+        cleanedUpdates[field] = null;
+      }
+    });
 
-  // Garantir que updated_at seja sempre atualizado
-  cleanedUpdates.updated_at = new Date().toISOString();
+    cleanedUpdates.updated_at = new Date().toISOString();
 
-  const { data, error } = await supabase
-    .from('law_tasks')
-    .update(cleanedUpdates)
-    .eq('id', id)
-    .select()
-    .single();
+    const { data, error } = await supabase
+      .from('law_tasks')
+      .update(cleanedUpdates)
+      .eq('id', id)
+      .select()
+      .single();
 
-  if (error) throw error;
-  return data;
-}
+    if (error) throw error;
+    return data;
+  }
 
   static async deleteTask(id: string): Promise<void> {
     const { error } = await supabase
@@ -299,21 +334,18 @@ static async updateTask(id: string, updates: Partial<LawTask>): Promise<LawTask>
     return data as LawAppointment
   }
 
-  // ... outros métodos de appointment mantidos (create/update/delete) se necessário ...
-
   // --- Profiles (USERS) ---
-  // Retorna todas as colunas da tabela profiles para garantir compatibilidade com o tipo Profile
- static async getProfiles(): Promise<Profile[]> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .order('full_name', { ascending: true });
+  static async getProfiles(): Promise<Profile[]> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('full_name', { ascending: true });
 
-  if (error) throw error;
-  return data;
-}
+    if (error) throw error;
+    return data;
+  }
 
-  // --- Dashboard helpers (mantidos) ---
+  // --- Dashboard helpers ---
   static async getTotalClientsCount(): Promise<number> {
     const { count, error } = await supabase
       .from('law_clients')
@@ -361,7 +393,8 @@ static async updateTask(id: string, updates: Partial<LawTask>): Promise<LawTask>
     if (error) throw error
     return data || []
   }
-    // --- Appointments helpers ---
+
+  // --- Appointments helpers ---
   static async getAppointmentsByDateRange(startDate: string, endDate: string): Promise<LawAppointment[]> {
     const { data, error } = await supabase
       .from('law_appointments')
@@ -406,4 +439,95 @@ static async updateTask(id: string, updates: Partial<LawTask>): Promise<LawTask>
     return (data as LawAppointment[]) || []
   }
 
+  // --- NOVAS FUNÇÕES PARA O ASSISTENTE INTELIGENTE ---
+  
+  static async searchTasksByDate(date: string): Promise<LawTask[]> {
+    const { data, error } = await supabase
+      .from('law_tasks')
+      .select('*')
+      .eq('due_date', date)
+      .order('priority', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  }
+
+  static async searchAppointmentsByDate(date: string): Promise<LawAppointment[]> {
+    const { data, error } = await supabase
+      .from('law_appointments')
+      .select('*')
+      .eq('appointment_date', date)
+      .order('start_time', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  }
+
+  static async searchTasksByStatus(status: string): Promise<LawTask[]> {
+    const { data, error } = await supabase
+      .from('law_tasks')
+      .select('*')
+      .eq('status', status)
+      .order('due_date', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  }
+
+  static async searchCasesByStatus(status: string): Promise<LawCase[]> {
+    const { data, error } = await supabase
+      .from('law_cases')
+      .select('*')
+      .eq('status', status)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  }
+
+  static async getTodaysTasks(): Promise<LawTask[]> {
+    const today = new Date().toISOString().split('T')[0];
+    return this.searchTasksByDate(today);
+  }
+
+  static async getTodaysAppointments(): Promise<LawAppointment[]> {
+    const today = new Date().toISOString().split('T')[0];
+    return this.searchAppointmentsByDate(today);
+  }
+
+  static async getPendingTasks(): Promise<LawTask[]> {
+    return this.searchTasksByStatus('pending');
+  }
+
+  static async getActiveCases(): Promise<LawCase[]> {
+    return this.searchCasesByStatus('open');
+  }
+
+  // --- Função de busca inteligente unificada ---
+  static async intelligentSearch(query: string): Promise<{
+    clients: LawClient[];
+    documents: LawDocument[];
+    cases: LawCase[];
+    tasks: LawTask[];
+    appointments: LawAppointment[];
+  }> {
+    const normalizedQuery = query.toLowerCase().trim();
+    
+    // Buscas simultâneas em todas as tabelas
+    const [clients, documents, cases, tasks, appointments] = await Promise.all([
+      supabase.from('law_clients').select('*').ilike('name', `%${normalizedQuery}%`),
+      supabase.from('law_documents').select('*').or(`name.ilike.%${normalizedQuery}%,description.ilike.%${normalizedQuery}%`),
+      supabase.from('law_cases').select('*').or(`title.ilike.%${normalizedQuery}%,case_number.ilike.%${normalizedQuery}%`),
+      supabase.from('law_tasks').select('*').or(`title.ilike.%${normalizedQuery}%,description.ilike.%${normalizedQuery}%`),
+      supabase.from('law_appointments').select('*').or(`title.ilike.%${normalizedQuery}%,description.ilike.%${normalizedQuery}%`)
+    ]);
+
+    return {
+      clients: clients.data || [],
+      documents: documents.data || [],
+      cases: cases.data || [],
+      tasks: tasks.data || [],
+      appointments: appointments.data || []
+    };
+  }
 }

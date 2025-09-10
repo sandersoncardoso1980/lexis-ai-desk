@@ -48,7 +48,17 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
   async function onSubmit(data: ClientFormData) {
     try {
       if (client) {
-        await LawFirmService.updateClient(client.id, data)
+        await LawFirmService.updateClient(client.id, {
+  name: data.name,
+  email: data.email,
+  phone: data.phone || null,
+  address: data.address || null,
+  document_number: data.document_number || null,
+  client_type: data.client_type,
+  status: data.status,
+  notes: data.notes || null
+})
+
         toast({
           title: "Sucesso",
           description: "Cliente atualizado com sucesso"

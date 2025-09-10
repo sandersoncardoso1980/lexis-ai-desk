@@ -9,6 +9,15 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CaseForm } from "@/components/cases/CaseForm";
 import { Badge } from "@/components/ui/badge";
+import { Briefcase, User } from "lucide-react"; 
+
+export default function Dashboard() {
+  return (
+    <AppLayout title="Dashboard"> // Propriedade 'title' adicionada
+      {/* ... conteúdo do dashboard */}
+    </AppLayout>
+  );
+}
 
 export function Cases() {
   const [cases, setCases] = useState<LawCase[]>([]);
@@ -141,6 +150,7 @@ export function Cases() {
   if (loading) {
     return (
       <AppLayout
+      title="Casos"
         breadcrumbs={[
           { label: "Dashboard", href: "/" },
           { label: "Casos" },
@@ -155,6 +165,7 @@ export function Cases() {
 
   return (
     <AppLayout
+    title="Casos"
       breadcrumbs={[
         { label: "Dashboard", href: "/" },
         { label: "Casos" },
@@ -206,6 +217,13 @@ export function Cases() {
                       <Scale className="h-4 w-4 mr-2 text-gray-400" />
                       <span className="font-medium">{getCaseTypeLabel(caseItem.case_type)}</span>
                     </div>
+                    
+                    {caseItem.client && ( // ← NEW
+                      <div className="flex items-center text-sm text-gray-600">
+                      <User className="h-4 w-4 mr-2 text-gray-400" />
+                       <span>{caseItem.client.name}</span>
+                      </div>
+                    )}
                     
                     {caseItem.value && (
                       <div className="flex items-center text-sm text-gray-600">

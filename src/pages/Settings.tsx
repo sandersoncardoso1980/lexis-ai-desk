@@ -205,7 +205,9 @@ export default function Settings() {
   };
 
   return (
-    <AppLayout breadcrumbs={[
+    <AppLayout
+    title="Configurações"
+    breadcrumbs={[
       { label: "Dashboard", href: "/" },
       { label: "Configurações" }
     ]}>

@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Plus, Search, Mail, Phone, Building, Eye, Edit, Trash2, X, FileText } from "lucide-react"
+import { Plus, Search, Mail, Phone, Building, Eye, Edit, Trash2, X, FileText, Briefcase } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { LawFirmService, type LawClient } from "@/services/lawFirmService"
+import { LawFirmService, type LawClient, type LawCase } from "@/services/lawFirmService"
 import { useState, useEffect } from "react"
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -30,30 +30,47 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
+import ClientDetails from "@/pages/ClientDetail"
+
+// Assumindo que a interface AppLayoutProps está definida no arquivo do componente
+interface AppLayoutProps {
+  title: string
+}
+
 export default function Clients() {
   const [searchTerm, setSearchTerm] = useState("")
   const [clients, setClients] = useState<LawClient[]>([])
+  const [casesByClient, setCasesByClient] = useState<Record<string, LawCase[]>>({})
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
-  const [showEditModal, setShowEditModal] = useState(false)
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [selectedClient, setSelectedClient] = useState<LawClient | null>(null)
   const { toast } = useToast()
 
-  useEffect(() => {
-    loadClients()
-  }, [])
-
-  const loadClients = async () => {
+  const loadClientsAndCases = async () => {
     try {
       setLoading(true)
-      const data = await LawFirmService.getClients()
-      setClients(data)
+      const clientsData = await LawFirmService.getClients()
+      setClients(clientsData)
+
+      const casesDataPromises = clientsData.map(async (client) => {
+        const cases = await LawFirmService.getCasesByClient(client.id)
+        return { clientId: client.id, cases }
+      })
+
+      const allCasesData = await Promise.all(casesDataPromises)
+
+      const casesMap: Record<string, LawCase[]> = {}
+      allCasesData.forEach(item => {
+        casesMap[item.clientId] = item.cases
+      })
+      setCasesByClient(casesMap)
     } catch (error) {
+      console.error("Erro ao carregar clientes e casos:", error)
       toast({
         title: "Erro",
-        description: "Não foi possível carregar os clientes",
+        description: "Não foi possível carregar os clientes. Tente novamente mais tarde.",
         variant: "destructive"
       })
     } finally {
@@ -61,337 +78,194 @@ export default function Clients() {
     }
   }
 
-  const filteredClients = clients.filter(client =>
-    client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (client.phone && client.phone.includes(searchTerm)) ||
-    (client.document_number && client.document_number.includes(searchTerm))
-  )
+  useEffect(() => {
+    loadClientsAndCases()
+  }, [])
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-      case 'inactive':
-        return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-      case 'potential':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-      default:
-        return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-    }
-  }
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'Ativo'
-      case 'inactive':
-        return 'Inativo'
-      case 'potential':
-        return 'Potencial'
-      default:
-        return status
-    }
-  }
-
-  const handleCreateSuccess = () => {
+  const handleClientFormSuccess = async () => {
+    await loadClientsAndCases()
     setShowCreateModal(false)
-    loadClients()
     toast({
-      title: "Sucesso",
-      description: "Cliente criado com sucesso"
+      title: "Sucesso!",
+      description: "Operação concluída com sucesso."
     })
   }
 
-  const handleEditSuccess = () => {
-    setShowEditModal(false)
-    setShowDetailsModal(false)
-    loadClients()
-    toast({
-      title: "Sucesso",
-      description: "Cliente atualizado com sucesso"
-    })
+  const handleDeleteClient = async () => {
+    if (selectedClient) {
+      try {
+        await LawFirmService.deleteClient(selectedClient.id)
+        await loadClientsAndCases()
+        setShowDeleteModal(false)
+        setShowDetailsModal(false)
+        toast({
+          title: "Sucesso!",
+          description: "Cliente excluído com sucesso."
+        })
+      } catch (error) {
+        console.error("Erro ao excluir cliente:", error)
+        toast({
+          title: "Erro",
+          description: "Não foi possível excluir o cliente. Tente novamente mais tarde.",
+          variant: "destructive"
+        })
+      }
+    }
   }
 
-  const handleViewDetails = (client: LawClient) => {
+  const handleViewClientDetails = (client: LawClient) => {
     setSelectedClient(client)
     setShowDetailsModal(true)
   }
 
-  const handleEditClient = (client: LawClient) => {
-    setSelectedClient(client)
-    setShowDetailsModal(false)
-    setShowEditModal(true)
-  }
-
-  const handleDeleteClient = async () => {
-    if (!selectedClient) return
-
-    try {
-      await LawFirmService.deleteClient(selectedClient.id)
-      setShowDeleteDialog(false)
-      setShowDetailsModal(false)
-      setSelectedClient(null)
-      loadClients()
-      toast({
-        title: "Sucesso",
-        description: "Cliente excluído com sucesso"
-      })
-    } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Não foi possível excluir o cliente",
-        variant: "destructive"
-      })
-    }
-  }
-
-  const openDeleteConfirmation = (client: LawClient) => {
-    setSelectedClient(client)
-    setShowDeleteDialog(true)
-  }
+  const filteredClients = clients.filter(client =>
+    client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    client.phone.includes(searchTerm)
+  )
 
   return (
-    <AppLayout breadcrumbs={[
-      { label: "Dashboard", href: "/" },
-      { label: "Clientes" }
-    ]}>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Clientes</h2>
-        
-        <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-          <DialogTrigger asChild>
-            <Button className="bg-gradient-primary w-full sm:w-auto">
-              <Plus className="mr-2 h-4 w-4" />
-              Novo Cliente
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Novo Cliente</DialogTitle>
-              <DialogDescription>
-                Preencha os dados do novo cliente
-              </DialogDescription>
-            </DialogHeader>
-            <ClientForm
-              onCancel={() => setShowCreateModal(false)}
-              onSuccess={handleCreateSuccess}
-            />
-          </DialogContent>
-        </Dialog>
+    <AppLayout title="Clientes">
+      <div className="flex justify-between items-center mb-6">
+        <div className="relative flex-1 max-w-lg">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar clientes..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Button onClick={() => setShowCreateModal(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Novo Cliente
+        </Button>
       </div>
 
-      {/* Busca */}
-      <Card className="mb-6">
-        <CardContent className="p-4 sm:p-6">
-          <div className="flex items-center space-x-2">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar clientes por nome, email, telefone ou documento..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {loading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i} className="animate-pulse">
-              <CardHeader className="pb-3">
-                <div className="h-4 bg-muted rounded w-3/4"></div>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {loading ? (
+          Array.from({ length: 6 }).map((_, index) => (
+            <Card key={index} className="animate-pulse">
+              <CardHeader>
+                <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
+                <div className="h-4 bg-gray-200 rounded w-1/2"></div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  <div className="h-3 bg-muted rounded w-full"></div>
-                  <div className="h-3 bg-muted rounded w-2/3"></div>
+                  <div className="h-4 bg-gray-200 rounded w-full"></div>
+                  <div className="h-4 bg-gray-200 rounded w-full"></div>
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredClients.map((client) => (
-            <Card key={client.id} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <Avatar>
-                      <AvatarFallback className="bg-primary/10 text-primary">
-                        {client.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <CardTitle className="text-lg">{client.name}</CardTitle>
-                    </div>
-                  </div>
-                  <Badge className={getStatusColor(client.status)}>
-                    {getStatusLabel(client.status)}
-                  </Badge>
-                </div>
+          ))
+        ) : filteredClients.length > 0 ? (
+          filteredClients.map((client) => (
+            <Card key={client.id} className="shadow-sm hover:shadow-md transition-shadow">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-xl font-bold">
+                  {client.name}
+                </CardTitle>
+                <Badge variant="secondary">{client.client_type}</Badge>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                  <Mail className="h-4 w-4" />
-                  <span className="truncate">{client.email}</span>
+              <CardContent className="space-y-2">
+                <div className="flex items-center text-sm text-muted-foreground">
+                  <Mail className="mr-2 h-4 w-4" />
+                  <span>{client.email}</span>
                 </div>
-                {client.phone && (
-                  <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                    <Phone className="h-4 w-4" />
-                    <span>{client.phone}</span>
-                  </div>
-                )}
-                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                  <Building className="h-4 w-4" />
-                  <span>{client.client_type === 'company' ? 'Empresa' : 'Pessoa Física'}</span>
+                <div className="flex items-center text-sm text-muted-foreground">
+                  <Phone className="mr-2 h-4 w-4" />
+                  <span>{client.phone}</span>
                 </div>
-                <div className="pt-3 border-t">
-                  <p className="text-xs text-muted-foreground">
-                    Cliente desde: {new Date(client.created_at).toLocaleDateString('pt-BR')}
-                  </p>
+                <div className="flex items-center text-sm text-muted-foreground">
+                  <Briefcase className="mr-2 h-4 w-4" />
+                  <span className="font-medium">
+                    {casesByClient[client.id]?.length || 0} Casos
+                  </span>
                 </div>
-                <div className="flex space-x-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="flex-1" 
-                    onClick={() => handleViewDetails(client)}
+                <div className="pt-4 flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => handleViewClientDetails(client)}
                   >
-                    <Eye className="mr-1 h-3 w-3" />
-                    Ver Detalhes
+                    <Eye className="mr-2 h-4 w-4" />
+                    Ver Detalhe
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      setSelectedClient(client);
+                      setShowDeleteModal(true);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
-      )}
+          ))
+        ) : (
+          <div className="col-span-full text-center py-12">
+            <p className="text-muted-foreground">
+              {clients.length === 0
+                ? "Nenhum cliente encontrado."
+                : `Nenhum cliente encontrado para "${searchTerm}".`}
+            </p>
+          </div>
+        )}
+      </div>
 
-      {/* Modal de Detalhes */}
-      <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      {/* Modal de Criação de Cliente */}
+      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center justify-between">
-              <span>Detalhes do Cliente</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowDetailsModal(false)}
-                className="h-8 w-8"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </DialogTitle>
+            <DialogTitle>Novo Cliente</DialogTitle>
+            <DialogDescription>
+              Preencha os dados do novo cliente para adicioná-lo ao sistema.
+            </DialogDescription>
           </DialogHeader>
-
-          {selectedClient && (
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center space-x-4">
-                    <Avatar className="h-16 w-16">
-                      <AvatarFallback className="text-lg">
-                        {selectedClient.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <CardTitle className="text-2xl">{selectedClient.name}</CardTitle>
-                      <div className="flex items-center space-x-2 mt-2">
-                        <Badge className={getStatusColor(selectedClient.status)}>
-                          {getStatusLabel(selectedClient.status)}
-                        </Badge>
-                        <Badge variant="outline">
-                          {selectedClient.client_type === 'company' ? 'Empresa' : 'Pessoa Física'}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center space-x-3">
-                    <Mail className="h-5 w-5 text-muted-foreground" />
-                    <span>{selectedClient.email}</span>
-                  </div>
-                  {selectedClient.phone && (
-                    <div className="flex items-center space-x-3">
-                      <Phone className="h-5 w-5 text-muted-foreground" />
-                      <span>{selectedClient.phone}</span>
-                    </div>
-                  )}
-                  {selectedClient.address && (
-                    <div className="flex items-center space-x-3">
-                      <Building className="h-5 w-5 text-muted-foreground" />
-                      <span>{selectedClient.address}</span>
-                    </div>
-                  )}
-                  {selectedClient.document_number && (
-                    <div className="flex items-center space-x-3">
-                      <FileText className="h-5 w-5 text-muted-foreground" />
-                      <span>{selectedClient.client_type === 'company' ? 'CNPJ' : 'CPF'}: {selectedClient.document_number}</span>
-                    </div>
-                  )}
-                  {selectedClient.notes && (
-                    <div className="pt-4 border-t">
-                      <h4 className="font-semibold mb-2">Observações</h4>
-                      <p className="text-muted-foreground">{selectedClient.notes}</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <div className="flex space-x-2 justify-end">
-                <Button
-                  variant="destructive"
-                  onClick={() => openDeleteConfirmation(selectedClient)}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Excluir Cliente
-                </Button>
-                <Button onClick={() => handleEditClient(selectedClient)}>
-                  <Edit className="mr-2 h-4 w-4" />
-                  Editar Cliente
-                </Button>
-              </div>
-            </div>
-          )}
+          <ClientForm onSuccess={handleClientFormSuccess} onCancel={() => setShowCreateModal(false)}/>
         </DialogContent>
       </Dialog>
 
-      {/* Modal de Edição */}
-      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      {/* Modal de Detalhes do Cliente */}
+      <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Editar Cliente</DialogTitle>
+            <DialogTitle>Detalhes do Cliente</DialogTitle>
             <DialogDescription>
-              Edite os dados do cliente {selectedClient?.name}
+              Informações completas do cliente e seus casos relacionados.
             </DialogDescription>
           </DialogHeader>
           {selectedClient && (
-            <ClientForm
+            <ClientDetails
               client={selectedClient}
-              onCancel={() => setShowEditModal(false)}
-              onSuccess={handleEditSuccess}
+              onEdit={handleClientFormSuccess}
+              onDelete={() => {
+                setShowDetailsModal(false)
+                setShowDeleteModal(true)
+              }}
+              cases={casesByClient[selectedClient.id] || []}
             />
           )}
         </DialogContent>
       </Dialog>
 
-      {/* Diálogo de Confirmação de Exclusão */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+      {/* Modal de Confirmação de Exclusão */}
+      <AlertDialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir o cliente "{selectedClient?.name}"? 
-              Esta ação não pode ser desfeita.
+              Esta ação não pode ser desfeita. Isso excluirá permanentemente o cliente
+              selecionado.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleDeleteClient}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
@@ -400,30 +274,6 @@ export default function Clients() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {!loading && clients.length === 0 && (
-        <div className="text-center py-12">
-          <div className="mx-auto w-20 h-20 bg-muted rounded-full flex items-center justify-center mb-4">
-            <Building className="h-10 w-10 text-muted-foreground" />
-          </div>
-          <h3 className="text-lg font-medium mb-2">Nenhum cliente encontrado</h3>
-          <p className="text-muted-foreground mb-4">
-            Comece adicionando seu primeiro cliente.
-          </p>
-          <Button onClick={() => setShowCreateModal(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Novo Cliente
-          </Button>
-        </div>
-      )}
-
-      {!loading && filteredClients.length === 0 && clients.length > 0 && (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">
-            Nenhum cliente encontrado para "{searchTerm}".
-          </p>
-        </div>
-      )}
     </AppLayout>
   )
 }

@@ -1,3 +1,5 @@
+// components/layout/AppLayout.tsx
+import { ReactNode } from "react"
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "./AppSidebar"
 import { Separator } from "@/components/ui/separator"
@@ -7,12 +9,14 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
+// Interface AppLayoutProps corrigida para incluir 'title'
 interface AppLayoutProps {
   children: React.ReactNode
   breadcrumbs?: { label: string; href?: string }[]
+  title: string; // Essa linha faz com que 'title' seja obrigatória
 }
 
-export function AppLayout({ children, breadcrumbs = [] }: AppLayoutProps) {
+export function AppLayout({ children, breadcrumbs = [], title }: AppLayoutProps) {
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -29,7 +33,9 @@ export function AppLayout({ children, breadcrumbs = [] }: AppLayoutProps) {
                     {index > 0 && <BreadcrumbSeparator />}
                     <BreadcrumbItem>
                       {crumb.href ? (
-                        <BreadcrumbLink href={crumb.href}>{crumb.label}</BreadcrumbLink>
+                        <BreadcrumbLink href={crumb.href}>
+                          {crumb.label}
+                        </BreadcrumbLink>
                       ) : (
                         <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
                       )}

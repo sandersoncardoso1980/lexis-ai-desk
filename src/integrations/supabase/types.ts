@@ -91,6 +91,7 @@ export type Database = {
       }
       law_cases: {
         Row: {
+          client: any
           actual_end_date: string | null
           case_number: string
           case_type: string
@@ -162,6 +163,7 @@ export type Database = {
       }
       law_clients: {
         Row: {
+          company_name: string
           address: string | null
           client_type: string
           created_at: string
