@@ -156,6 +156,50 @@ const callGroqAPI = async (messages: any[]): Promise<string> => {
 
 const isSupabaseConfigured = () => !!supabase;
 
+// Função para normalizar texto (remover acentos e caracteres especiais)
+const normalizeText = (text: string): string => {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+};
+
+// Função para extrair palavras-chave de uma consulta
+const extractKeywords = (query: string): string[] => {
+  const stopWords = new Set([
+    'o', 'a', 'os', 'as', 'um', 'uma', 'uns', 'umas', 'de', 'do', 'da', 'dos', 'das',
+    'em', 'no', 'na', 'nos', 'nas', 'por', 'para', 'com', 'sem', 'sobre', 'sob',
+    'entre', 'que', 'qual', 'quais', 'quem', 'onde', 'quando', 'como', 'porque',
+    'documento', 'documentos', 'doc', 'buscar', 'procurar', 'encontrar', 'localizar',
+    'mostrar', 'listar', 'ver', 'consultar'
+  ]);
+  
+  return query
+    .split(/\s+/)
+    .map(word => normalizeText(word))
+    .filter(word => word.length > 2 && !stopWords.has(word));
+};
+
+// Função para calcular similaridade entre strings (usando algoritmo simples)
+const calculateSimilarity = (str1: string, str2: string): number => {
+  const normalized1 = normalizeText(str1);
+  const normalized2 = normalizeText(str2);
+  
+  if (normalized1.includes(normalized2) || normalized2.includes(normalized1)) {
+    return 1;
+  }
+  
+  // Implementação simples de similaridade por subsequência comum
+  let commonChars = 0;
+  for (let i = 0; i < Math.min(normalized1.length, normalized2.length); i++) {
+    if (normalized1[i] === normalized2[i]) {
+      commonChars++;
+    }
+  }
+  
+  return commonChars / Math.max(normalized1.length, normalized2.length);
+};
+
 export default function AIAssistant() {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -164,10 +208,10 @@ export default function AIAssistant() {
       sender: "ai",
       timestamp: new Date().toISOString(),
       suggestions: [
-        "Informações sobre o cliente",
-        "Buscar documento",
+        "Informações sobre o cliente Miguel Braga",
+        "Buscar documento Guia Projeto de Saúde",
         "Listar tarefas pendentes",
-        "Detalhes do caso"
+        "Detalhes do caso 'Processo 123/2024'"
       ],
     },
   ]);
@@ -231,7 +275,7 @@ export default function AIAssistant() {
       if (error) return `❌ Erro ao buscar documentos: ${error.message}`;
       if (!data || data.length === 0) return `❌ Nenhum documento encontrado para "${query}".`;
       
-      const groqMessages = [{ role: "system", content: "Você é um assistente jurídico sênior chamado Spector. Liste os documentos encontrados de forma organizada e amigável, usando emojis. Inclua informações relevantes como tipo e status." }, { role: "user", content: `Liste estes documentos de forma amigável: ${JSON.stringify(data)}. Foram encontrados ${data.length} documentos.` }];
+      const groqMessages = [{ role: "system", content: "Você é um assistente jurídico sênior chamado Spector. Liste os documentos encontrados e busque por palavras chaves que possam ter relação com o pedido do usuário de forma organizada e amigável, usando emojis. Inclua informações relevantes como tipo e status." }, { role: "user", content: `Liste estes documentos de forma amigável: ${JSON.stringify(data)}. Foram encontrados ${data.length} documentos.` }];
       return await callGroqAPI(groqMessages);
     } catch (error) {
       console.error("Erro ao buscar documentos:", error);

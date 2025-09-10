@@ -20,8 +20,190 @@ import {
   Mail,
   Save
 } from "lucide-react"
+import { useState, useEffect } from "react"
+import { toast } from "sonner" // Assumindo que você está usando sonner para toasts
+
+// Tipos para os dados do formulário
+interface ProfileData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  bio: string;
+  oab: string;
+  specialty: string;
+  office: string;
+}
+
+interface NotificationSettings {
+  emailNotifications: boolean;
+  deadlineReminders: boolean;
+  newDocuments: boolean;
+  caseUpdates: boolean;
+  weeklyReports: boolean;
+}
+
+interface SecuritySettings {
+  twoFactorSMS: boolean;
+  encryptionKey: string;
+}
+
+interface SystemSettings {
+  timezone: string;
+  language: string;
+  dateFormat: string;
+  autoBackup: boolean;
+  auditLogs: boolean;
+}
 
 export default function Settings() {
+  // Estados para os dados do formulário
+  const [profileData, setProfileData] = useState<ProfileData>({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    bio: "",
+    oab: "",
+    specialty: "",
+    office: ""
+  });
+
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
+    emailNotifications: true,
+    deadlineReminders: true,
+    newDocuments: true,
+    caseUpdates: true,
+    weeklyReports: false
+  });
+
+  const [securitySettings, setSecuritySettings] = useState<SecuritySettings>({
+    twoFactorSMS: true,
+    encryptionKey: "****-****-****-****"
+  });
+
+  const [systemSettings, setSystemSettings] = useState<SystemSettings>({
+    timezone: "america-sao_paulo",
+    language: "pt-br",
+    dateFormat: "dd-mm-yyyy",
+    autoBackup: true,
+    auditLogs: true
+  });
+
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: ""
+  });
+
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Carregar dados salvos ao inicializar
+  useEffect(() => {
+    const savedProfileData = localStorage.getItem("profileData");
+    if (savedProfileData) {
+      setProfileData(JSON.parse(savedProfileData));
+    }
+
+    const savedNotificationSettings = localStorage.getItem("notificationSettings");
+    if (savedNotificationSettings) {
+      setNotificationSettings(JSON.parse(savedNotificationSettings));
+    }
+
+    const savedSecuritySettings = localStorage.getItem("securitySettings");
+    if (savedSecuritySettings) {
+      setSecuritySettings(JSON.parse(savedSecuritySettings));
+    }
+
+    const savedSystemSettings = localStorage.getItem("systemSettings");
+    if (savedSystemSettings) {
+      setSystemSettings(JSON.parse(savedSystemSettings));
+    }
+  }, []);
+
+  // Manipuladores de eventos
+  const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { id, value } = e.target;
+    setProfileData(prev => ({ ...prev, [id]: value }));
+  };
+
+  const handleSelectChange = (name: string, value: string) => {
+    setProfileData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleNotificationChange = (name: keyof NotificationSettings, checked: boolean) => {
+    setNotificationSettings(prev => ({ ...prev, [name]: checked }));
+  };
+
+  const handleSystemChange = (name: keyof SystemSettings, value: string | boolean) => {
+    setSystemSettings(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target;
+    setPasswordData(prev => ({ ...prev, [id]: value }));
+  };
+
+  // Funções de salvamento
+  const saveProfile = () => {
+    setIsLoading(true);
+    // Simular uma requisição assíncrona
+    setTimeout(() => {
+      localStorage.setItem("profileData", JSON.stringify(profileData));
+      setIsLoading(false);
+      toast.success("Perfil salvo com sucesso!");
+    }, 1000);
+  };
+
+  const saveNotifications = () => {
+    setIsLoading(true);
+    setTimeout(() => {
+      localStorage.setItem("notificationSettings", JSON.stringify(notificationSettings));
+      setIsLoading(false);
+      toast.success("Configurações de notificação salvas!");
+    }, 1000);
+  };
+
+  const saveSecurity = () => {
+    setIsLoading(true);
+    setTimeout(() => {
+      localStorage.setItem("securitySettings", JSON.stringify(securitySettings));
+      setIsLoading(false);
+      
+      // Validar senha
+      if (passwordData.newPassword && passwordData.newPassword !== passwordData.confirmPassword) {
+        toast.error("As senhas não coincidem!");
+        return;
+      }
+      
+      if (passwordData.newPassword) {
+        // Aqui você faria a chamada API para alterar a senha
+        toast.success("Senha alterada com sucesso!");
+        setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      }
+      
+      toast.success("Configurações de segurança salvas!");
+    }, 1000);
+  };
+
+  const saveSystem = () => {
+    setIsLoading(true);
+    setTimeout(() => {
+      localStorage.setItem("systemSettings", JSON.stringify(systemSettings));
+      setIsLoading(false);
+      toast.success("Configurações do sistema salvas!");
+    }, 1000);
+  };
+
+  const regenerateEncryptionKey = () => {
+    const newKey = Math.random().toString(36).substring(2, 10) + '-' + 
+                  Math.random().toString(36).substring(2, 10) + '-' + 
+                  Math.random().toString(36).substring(2, 10) + '-' + 
+                  Math.random().toString(36).substring(2, 10);
+    setSecuritySettings(prev => ({ ...prev, encryptionKey: newKey }));
+    toast.success("Chave de criptografia regenerada!");
+  };
+
   return (
     <AppLayout breadcrumbs={[
       { label: "Dashboard", href: "/" },
@@ -55,28 +237,54 @@ export default function Settings() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">Nome</Label>
-                  <Input id="firstName" placeholder="João" />
+                  <Input 
+                    id="firstName" 
+                    placeholder="João" 
+                    value={profileData.firstName}
+                    onChange={handleProfileChange}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="lastName">Sobrenome</Label>
-                  <Input id="lastName" placeholder="Silva" />
+                  <Input 
+                    id="lastName" 
+                    placeholder="Silva" 
+                    value={profileData.lastName}
+                    onChange={handleProfileChange}
+                  />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="joao.silva@email.com" />
+                <Input 
+                  id="email" 
+                  type="email" 
+                  placeholder="joao.silva@email.com" 
+                  value={profileData.email}
+                  onChange={handleProfileChange}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Telefone</Label>
-                <Input id="phone" placeholder="(11) 99999-9999" />
+                <Input 
+                  id="phone" 
+                  placeholder="(11) 99999-9999" 
+                  value={profileData.phone}
+                  onChange={handleProfileChange}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="bio">Biografia</Label>
-                <Textarea id="bio" placeholder="Advogado especialista em..." />
+                <Textarea 
+                  id="bio" 
+                  placeholder="Advogado especialista em..." 
+                  value={profileData.bio}
+                  onChange={handleProfileChange}
+                />
               </div>
-              <Button>
+              <Button onClick={saveProfile} disabled={isLoading}>
                 <Save className="mr-2 h-4 w-4" />
-                Salvar Alterações
+                {isLoading ? "Salvando..." : "Salvar Alterações"}
               </Button>
             </CardContent>
           </Card>
@@ -88,11 +296,19 @@ export default function Settings() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="oab">Número da OAB</Label>
-                <Input id="oab" placeholder="123456/SP" />
+                <Input 
+                  id="oab" 
+                  placeholder="123456/SP" 
+                  value={profileData.oab}
+                  onChange={handleProfileChange}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="specialty">Especialidade</Label>
-                <Select>
+                <Select 
+                  value={profileData.specialty} 
+                  onValueChange={(value) => handleSelectChange("specialty", value)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione sua especialidade" />
                   </SelectTrigger>
@@ -107,8 +323,17 @@ export default function Settings() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="office">Escritório</Label>
-                <Input id="office" placeholder="Silva & Associados" />
+                <Input 
+                  id="office" 
+                  placeholder="Silva & Associados" 
+                  value={profileData.office}
+                  onChange={handleProfileChange}
+                />
               </div>
+              <Button onClick={saveProfile} disabled={isLoading}>
+                <Save className="mr-2 h-4 w-4" />
+                {isLoading ? "Salvando..." : "Salvar Alterações"}
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -129,7 +354,10 @@ export default function Settings() {
                     Receber notificações importantes por email
                   </div>
                 </div>
-                <Switch defaultChecked />
+                <Switch 
+                  checked={notificationSettings.emailNotifications}
+                  onCheckedChange={(checked) => handleNotificationChange("emailNotifications", checked)}
+                />
               </div>
               
               <div className="flex items-center justify-between">
@@ -139,7 +367,10 @@ export default function Settings() {
                     Alertas para prazos processuais importantes
                   </div>
                 </div>
-                <Switch defaultChecked />
+                <Switch 
+                  checked={notificationSettings.deadlineReminders}
+                  onCheckedChange={(checked) => handleNotificationChange("deadlineReminders", checked)}
+                />
               </div>
               
               <div className="flex items-center justify-between">
@@ -149,7 +380,10 @@ export default function Settings() {
                     Notificar quando novos documentos forem adicionados
                   </div>
                 </div>
-                <Switch defaultChecked />
+                <Switch 
+                  checked={notificationSettings.newDocuments}
+                  onCheckedChange={(checked) => handleNotificationChange("newDocuments", checked)}
+                />
               </div>
               
               <div className="flex items-center justify-between">
@@ -159,7 +393,10 @@ export default function Settings() {
                     Notificar sobre mudanças no status dos casos
                   </div>
                 </div>
-                <Switch defaultChecked />
+                <Switch 
+                  checked={notificationSettings.caseUpdates}
+                  onCheckedChange={(checked) => handleNotificationChange("caseUpdates", checked)}
+                />
               </div>
 
               <div className="flex items-center justify-between">
@@ -169,8 +406,16 @@ export default function Settings() {
                     Receber resumo semanal das atividades
                   </div>
                 </div>
-                <Switch />
+                <Switch 
+                  checked={notificationSettings.weeklyReports}
+                  onCheckedChange={(checked) => handleNotificationChange("weeklyReports", checked)}
+                />
               </div>
+              
+              <Button onClick={saveNotifications} disabled={isLoading}>
+                <Save className="mr-2 h-4 w-4" />
+                {isLoading ? "Salvando..." : "Salvar Preferências"}
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -187,17 +432,34 @@ export default function Settings() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="currentPassword">Senha Atual</Label>
-                  <Input id="currentPassword" type="password" />
+                  <Input 
+                    id="currentPassword" 
+                    type="password" 
+                    value={passwordData.currentPassword}
+                    onChange={handlePasswordChange}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="newPassword">Nova Senha</Label>
-                  <Input id="newPassword" type="password" />
+                  <Input 
+                    id="newPassword" 
+                    type="password" 
+                    value={passwordData.newPassword}
+                    onChange={handlePasswordChange}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="confirmPassword">Confirmar Nova Senha</Label>
-                  <Input id="confirmPassword" type="password" />
+                  <Input 
+                    id="confirmPassword" 
+                    type="password" 
+                    value={passwordData.confirmPassword}
+                    onChange={handlePasswordChange}
+                  />
                 </div>
-                <Button>Alterar Senha</Button>
+                <Button onClick={saveSecurity} disabled={isLoading}>
+                  {isLoading ? "Processando..." : "Alterar Senha"}
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -255,8 +517,10 @@ export default function Settings() {
               <div className="space-y-2">
                 <Label>Chave de Criptografia</Label>
                 <div className="flex gap-2">
-                  <Input value="****-****-****-****" readOnly />
-                  <Button variant="outline">Regenerar</Button>
+                  <Input value={securitySettings.encryptionKey} readOnly />
+                  <Button variant="outline" onClick={regenerateEncryptionKey}>
+                    Regenerar
+                  </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Mantenha sua chave segura. Sem ela, os documentos não podem ser descriptografados.
@@ -264,6 +528,11 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
+          
+          <Button onClick={saveSecurity} disabled={isLoading}>
+            <Save className="mr-2 h-4 w-4" />
+            {isLoading ? "Salvando..." : "Salvar Configurações de Segurança"}
+          </Button>
         </TabsContent>
 
         <TabsContent value="integrations" className="space-y-6">
@@ -336,7 +605,10 @@ export default function Settings() {
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <Label>Fuso Horário</Label>
-                <Select defaultValue="america-sao_paulo">
+                <Select 
+                  value={systemSettings.timezone} 
+                  onValueChange={(value) => handleSystemChange("timezone", value)}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -350,7 +622,10 @@ export default function Settings() {
 
               <div className="space-y-2">
                 <Label>Idioma</Label>
-                <Select defaultValue="pt-br">
+                <Select 
+                  value={systemSettings.language} 
+                  onValueChange={(value) => handleSystemChange("language", value)}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -364,7 +639,10 @@ export default function Settings() {
 
               <div className="space-y-2">
                 <Label>Formato de Data</Label>
-                <Select defaultValue="dd-mm-yyyy">
+                <Select 
+                  value={systemSettings.dateFormat} 
+                  onValueChange={(value) => handleSystemChange("dateFormat", value)}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -383,7 +661,10 @@ export default function Settings() {
                     Realizar backup diário dos dados
                   </div>
                 </div>
-                <Switch defaultChecked />
+                <Switch 
+                  checked={systemSettings.autoBackup}
+                  onCheckedChange={(checked) => handleSystemChange("autoBackup", checked)}
+                />
               </div>
 
               <div className="flex items-center justify-between">
@@ -393,8 +674,16 @@ export default function Settings() {
                     Registrar todas as ações do sistema
                   </div>
                 </div>
-                <Switch defaultChecked />
+                <Switch 
+                  checked={systemSettings.auditLogs}
+                  onCheckedChange={(checked) => handleSystemChange("auditLogs", checked)}
+                />
               </div>
+              
+              <Button onClick={saveSystem} disabled={isLoading}>
+                <Save className="mr-2 h-4 w-4" />
+                {isLoading ? "Salvando..." : "Salvar Configurações do Sistema"}
+              </Button>
             </CardContent>
           </Card>
 
