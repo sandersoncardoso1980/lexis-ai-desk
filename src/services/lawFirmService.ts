@@ -55,28 +55,45 @@ export class LawFirmService {
     if (error) throw error
     return data
   }
-static async createAppointment(appointmentData: Omit<LawAppointment, 'id' | 'created_at' | 'updated_at' | 'user_id'>): Promise<LawAppointment> {
+
+
+  static async createAppointment(appointmentData: Omit<LawAppointment, 'id' | 'created_at' | 'updated_at' | 'user_id'>): Promise<LawAppointment> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('User not authenticated');
 
-  const cleanedData = {
-    ...appointmentData,
-    client_id: appointmentData.client_id === "" ? null : appointmentData.client_id,
-    case_id: appointmentData.case_id === "" ? null : appointmentData.case_id,
-    user_id: user.id
-  };
+  // Limpa os dados - converte string vazia para null
+  const cleanedData: any = {};
+  Object.entries(appointmentData).forEach(([key, value]) => {
+    if ((key === 'client_id' || key === 'case_id') && value === '') {
+      cleanedData[key] = null;
+    } else {
+      cleanedData[key] = value;
+    }
+  });
+
+  cleanedData.user_id = user.id;
+
+  console.log("Criando agendamento com dados:", cleanedData);
 
   const { data, error } = await supabase
     .from('law_appointments')
     .insert(cleanedData)
-    .select()
+    .select(`
+      *,
+      client:law_clients (
+        id, name, email, phone
+      ),
+      case:law_cases (
+        id, title, case_number, status
+      )
+    `)
     .single();
 
   if (error) {
     console.error("Supabase error during createAppointment:", error);
     throw error;
   }
-  return data;
+  return data as LawAppointment;
 }
 
 
@@ -573,7 +590,12 @@ static async updateAppointment(id: string, updates: Partial<LawAppointment>): Pr
   // Só inclui campos que não estão na lista de exclusão e não são undefined
   Object.entries(updates).forEach(([key, value]) => {
     if (value !== undefined && !excludedFields.includes(key)) {
-      cleanedUpdates[key] = value
+      // Converte string vazia para null nos campos de relacionamento
+      if ((key === 'client_id' || key === 'case_id') && value === '') {
+        cleanedUpdates[key] = null;
+      } else {
+        cleanedUpdates[key] = value;
+      }
     }
   })
   
