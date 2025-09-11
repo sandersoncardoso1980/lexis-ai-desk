@@ -562,6 +562,63 @@ static async updateClient(id: string, updates: Partial<LawClient>): Promise<LawC
     return this.searchCasesByStatus('open');
   }
 
+  // Adicione estas funções na classe LawFirmService no arquivo lawFirmService.ts
+
+static async updateAppointment(id: string, updates: Partial<LawAppointment>): Promise<LawAppointment> {
+  const cleanedUpdates: any = {}
+  
+  // Lista de campos que NÃO devem ser atualizados
+  const excludedFields = ['id', 'created_at', 'created_by', 'user_id'];
+  
+  // Só inclui campos que não estão na lista de exclusão e não são undefined
+  Object.entries(updates).forEach(([key, value]) => {
+    if (value !== undefined && !excludedFields.includes(key)) {
+      cleanedUpdates[key] = value
+    }
+  })
+  
+  // Força updated_at
+  cleanedUpdates.updated_at = new Date().toISOString()
+  
+  console.log("Atualizando agendamento com dados:", cleanedUpdates);
+  
+  const { data, error } = await supabase
+    .from('law_appointments')
+    .update(cleanedUpdates)
+    .eq('id', id)
+    .select(`
+      *,
+      client:law_clients (
+        id, name, email, phone
+      ),
+      case:law_cases (
+        id, title, case_number, status
+      )
+    `)
+    .single()
+
+  if (error) {
+    console.error("Supabase error during updateAppointment:", error)
+    throw error
+  }
+  return data as LawAppointment
+}
+
+
+
+static async deleteAppointment(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('law_appointments')
+    .delete()
+    .eq('id', id)
+  
+  if (error) {
+    console.error("Supabase error during deleteAppointment:", error)
+    throw error
+  }
+}
+
+
   // --- Função de busca inteligente unificada ---
   static async intelligentSearch(query: string): Promise<{
     clients: LawClient[];
