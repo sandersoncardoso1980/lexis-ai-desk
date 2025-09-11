@@ -6,80 +6,171 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { LawFirmService, LawClient, LawCase } from "@/services/lawFirmService"
+import { LawFirmService, LawClient, LawCase, LawAppointment } from "@/services/lawFirmService"
+import { supabase } from "@/lib/supabaseClient"
+import { useToast } from "@/hooks/use-toast"
 
 interface AppointmentFormProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onAppointmentCreated: () => void
+  editingAppointment?: LawAppointment | null
 }
 
-export function AppointmentForm({ open, onOpenChange, onAppointmentCreated }: AppointmentFormProps) {
+// Constantes para valores vazios (não podemos usar string vazia)
+const EMPTY_VALUE = "none"
+
+export function AppointmentForm({ open, onOpenChange, onAppointmentCreated, editingAppointment }: AppointmentFormProps) {
   const [loading, setLoading] = useState(false)
   const [clients, setClients] = useState<LawClient[]>([])
   const [cases, setCases] = useState<LawCase[]>([])
-  const [formData, setFormData] = useState({
+  const { toast } = useToast()
+
+const [formData, setFormData] = useState({
+  title: "",
+  description: "",
+  client_id: EMPTY_VALUE,
+  case_id: EMPTY_VALUE,
+  appointment_date: new Date().toISOString().split('T')[0],
+  start_time: "09:00",
+  end_time: "10:00",
+  location: "",
+  appointment_type: "consultation",
+  status: "scheduled",
+  notes: "",
+  reminder_sent: false
+  // Removido created_by do estado inicial
+})
+
+  useEffect(() => {
+    if (open) {
+      console.log("AppointmentForm opened, editingAppointment:", editingAppointment);
+      fetchClientsAndCases()
+      
+      // Se estiver editando, preenche o formulário com os dados existentes
+      if (editingAppointment) {
+  console.log("Preenchendo formulário com dados de edição:", editingAppointment);
+  try {
+    setFormData({
+      title: editingAppointment.title || "",
+      description: editingAppointment.description || "",
+      // Converte null/undefined para EMPTY_VALUE
+      client_id: editingAppointment.client_id ? String(editingAppointment.client_id) : EMPTY_VALUE,
+      case_id: editingAppointment.case_id ? String(editingAppointment.case_id) : EMPTY_VALUE,
+      appointment_date: editingAppointment.appointment_date || new Date().toISOString().split('T')[0],
+      start_time: editingAppointment.start_time || "09:00",
+      end_time: editingAppointment.end_time || "10:00",
+      location: editingAppointment.location || "",
+      appointment_type: editingAppointment.appointment_type || "consultation",
+      status: editingAppointment.status || "scheduled",
+      notes: editingAppointment.notes || "",
+      reminder_sent: editingAppointment.reminder_sent || false
+      // Removido created_by
+    });
+    console.log("Formulário preenchido com sucesso");
+  } catch (error) {
+    console.error("Erro ao preencher formulário:", error);
+  }
+} else {
+  console.log("Criando novo agendamento - resetando formulário");
+  // Se for novo, reseta o formulário
+  setFormData({
     title: "",
     description: "",
-    client_id: "",
-    case_id: "",
+    client_id: EMPTY_VALUE,
+    case_id: EMPTY_VALUE,
     appointment_date: new Date().toISOString().split('T')[0],
     start_time: "09:00",
     end_time: "10:00",
     location: "",
     appointment_type: "consultation",
     status: "scheduled",
-    notes: ""
+    notes: "",
+    reminder_sent: false
+    // Removido created_by
   })
-
-  useEffect(() => {
-    if (open) {
-      fetchClientsAndCases()
+}
     }
-  }, [open])
+  }, [open, editingAppointment])
 
   const fetchClientsAndCases = async () => {
     try {
+      console.log("Buscando clientes e casos...");
       const [clientsData, casesData] = await Promise.all([
         LawFirmService.getClients(),
         LawFirmService.getCases()
       ])
       setClients(clientsData)
       setCases(casesData)
+      console.log("Clientes e casos carregados:", clientsData.length, casesData.length);
     } catch (error) {
       console.error("Failed to fetch clients and cases:", error)
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    
-    try {
-      await LawFirmService.createAppointment(formData)
-      onAppointmentCreated()
-      onOpenChange(false)
-      // Reset form
-      setFormData({
-        title: "",
-        description: "",
-        client_id: "",
-        case_id: "",
-        appointment_date: new Date().toISOString().split('T')[0],
-        start_time: "09:00",
-        end_time: "10:00",
-        location: "",
-        appointment_type: "consultation",
-        status: "scheduled",
-        notes: ""
-      })
-    } catch (error) {
-      console.error("Failed to create appointment:", error)
-      alert("Erro ao criar agendamento. Tente novamente.")
-    } finally {
-      setLoading(false)
+  e.preventDefault();
+  setLoading(true);
+
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Usuário não autenticado');
+
+    console.log("Submetendo formulário, editingAppointment:", editingAppointment);
+
+    // Preparar dados para envio (converter EMPTY_VALUE para null)
+    const submitData = {
+      title: formData.title,
+      description: formData.description,
+      client_id: formData.client_id === EMPTY_VALUE ? null : formData.client_id,
+      case_id: formData.case_id === EMPTY_VALUE ? null : formData.case_id,
+      appointment_date: formData.appointment_date,
+      start_time: formData.start_time,
+      end_time: formData.end_time,
+      location: formData.location,
+      appointment_type: formData.appointment_type,
+      status: formData.status,
+      notes: formData.notes,
+      reminder_sent: formData.reminder_sent
+    };
+
+    if (editingAppointment) {
+      // Atualizar agendamento existente - NÃO enviar created_by
+      console.log("Atualizando agendamento:", editingAppointment.id);
+      await LawFirmService.updateAppointment(editingAppointment.id, submitData);
+      
+      toast({
+        title: "Agendamento atualizado",
+        description: "O agendamento foi atualizado com sucesso.",
+      });
+    } else {
+      // Criar novo agendamento - incluir created_by
+      console.log("Criando novo agendamento");
+      await LawFirmService.createAppointment({
+        ...submitData,
+        created_by: user.id
+      });
+      
+      toast({
+        title: "Agendamento criado",
+        description: "O agendamento foi criado com sucesso.",
+      });
     }
+    
+    onAppointmentCreated();
+    onOpenChange(false);
+    
+  } catch (error) {
+    console.error("Failed to save appointment:", error);
+    toast({
+      title: "Erro",
+      description: "Não foi possível salvar o agendamento. Tente novamente.",
+      variant: "destructive",
+    });
+  } finally {
+    setLoading(false);
   }
+}
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -90,13 +181,17 @@ export function AppointmentForm({ open, onOpenChange, onAppointmentCreated }: Ap
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
+  console.log("Renderizando AppointmentForm, formData:", formData);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Novo Agendamento</DialogTitle>
+          <DialogTitle>
+            {editingAppointment ? "Editar Agendamento" : "Novo Agendamento"}
+          </DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -152,6 +247,7 @@ export function AppointmentForm({ open, onOpenChange, onAppointmentCreated }: Ap
                   <SelectValue placeholder="Selecione um cliente" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value={EMPTY_VALUE}>Nenhum</SelectItem>
                   {clients.map(client => (
                     <SelectItem key={client.id} value={client.id}>
                       {client.name}
@@ -171,6 +267,7 @@ export function AppointmentForm({ open, onOpenChange, onAppointmentCreated }: Ap
                   <SelectValue placeholder="Selecione um caso" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value={EMPTY_VALUE}>Nenhum</SelectItem>
                   {cases.map(caseItem => (
                     <SelectItem key={caseItem.id} value={caseItem.id}>
                       {caseItem.title} - {caseItem.case_number}
@@ -264,7 +361,7 @@ export function AppointmentForm({ open, onOpenChange, onAppointmentCreated }: Ap
               Cancelar
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "Criando..." : "Criar Agendamento"}
+              {loading ? "Salvando..." : editingAppointment ? "Atualizar Agendamento" : "Criar Agendamento"}
             </Button>
           </div>
         </form>
