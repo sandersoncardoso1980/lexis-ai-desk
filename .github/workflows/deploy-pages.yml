@@ -1,29 +1,36 @@
-name: Deploy GitHub Pages
+name: Deploy Vite + React to GitHub Pages
 
 on:
   push:
     branches:
-      - main  # Toda vez que der push no main, deploy automático
+      - main  # roda sempre que der push no main
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checar código
+      # 1️⃣ Checa o código
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Se tu tiver build, tipo React, Next ou outro framework, adiciona o build aqui
-      - name: Instalar dependências
-        run: |
-          npm install
+      # 2️⃣ Instala Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
 
-      - name: Build do projeto
-        run: |
-          npm run build  # ou yarn build, depende do teu setup
+      # 3️⃣ Instala dependências
+      - name: Install dependencies
+        run: npm install
 
-      - name: Deploy para GitHub Pages
+      # 4️⃣ Build do projeto
+      - name: Build project
+        run: npm run build
+
+      # 5️⃣ Deploy pro GitHub Pages
+      - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./build  # ou ./out, ./dist, depende do teu projeto
+          publish_dir: ./dist   # ⚡ pasta de saída do Vite
