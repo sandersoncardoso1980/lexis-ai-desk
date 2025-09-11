@@ -3,26 +3,21 @@ import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { LawFirmService, type LawCase } from "@/services/lawFirmService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Plus, Calendar, DollarSign, Scale } from "lucide-react";
+import { Loader2, Plus, Calendar, DollarSign, Scale, Search, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CaseForm } from "@/components/cases/CaseForm";
 import { Badge } from "@/components/ui/badge";
-import { Briefcase, User } from "lucide-react"; 
-
-export default function Dashboard() {
-  return (
-    <AppLayout title="Dashboard"> // Propriedade 'title' adicionada
-      {/* ... conteúdo do dashboard */}
-    </AppLayout>
-  );
-}
+import { Briefcase, User } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 export function Cases() {
   const [cases, setCases] = useState<LawCase[]>([]);
+  const [filteredCases, setFilteredCases] = useState<LawCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNewCaseDialog, setShowNewCaseDialog] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const { toast } = useToast();
 
   const fetchCases = async () => {
@@ -30,6 +25,7 @@ export function Cases() {
       setLoading(true);
       const fetchedCases = await LawFirmService.getCases();
       setCases(fetchedCases);
+      setFilteredCases(fetchedCases);
     } catch (error) {
       toast({
         title: "Erro ao carregar os casos",
@@ -45,9 +41,37 @@ export function Cases() {
     fetchCases();
   }, []);
 
+  // Filtro de busca
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredCases(cases);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase().trim();
+    const filtered = cases.filter(caseItem => {
+      // Busca pelo título do caso
+      const titleMatch = caseItem.title?.toLowerCase().includes(query);
+      
+      // Busca pelo nome do cliente
+      const clientNameMatch = caseItem.client?.name?.toLowerCase().includes(query);
+      
+      // Busca pelo número do caso
+      const caseNumberMatch = caseItem.case_number?.toLowerCase().includes(query);
+      
+      return titleMatch || clientNameMatch || caseNumberMatch;
+    });
+
+    setFilteredCases(filtered);
+  }, [searchQuery, cases]);
+
   const handleNewCaseSuccess = () => {
     setShowNewCaseDialog(false);
     fetchCases(); // Recarrega a lista após criar um novo caso
+  };
+
+  const clearSearch = () => {
+    setSearchQuery("");
   };
 
   const getStatusColor = (status: string) => {
@@ -150,7 +174,7 @@ export function Cases() {
   if (loading) {
     return (
       <AppLayout
-      title="Casos"
+        title="Casos"
         breadcrumbs={[
           { label: "Dashboard", href: "/" },
           { label: "Casos" },
@@ -165,32 +189,79 @@ export function Cases() {
 
   return (
     <AppLayout
-    title="Casos"
+      title="Casos"
       breadcrumbs={[
         { label: "Dashboard", href: "/" },
         { label: "Casos" },
       ]}
     >
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-3xl font-bold">Gestão de Casos</h1>
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">Gestão de Casos</h1>
+          <p className="text-muted-foreground mt-1">
+            Visualize, crie e gerencie todos os casos do escritório.
+          </p>
+        </div>
         <Button onClick={() => setShowNewCaseDialog(true)} className="bg-blue-600 hover:bg-blue-700">
           <Plus className="mr-2 h-4 w-4" /> Novo Caso
         </Button>
       </div>
 
-      <p className="text-muted-foreground mb-6">
-        Visualize, crie e gerencie todos os casos do escritório.
-      </p>
+      {/* Campo de Busca */}
+      <div className="relative mb-6 max-w-md">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+        <Input
+          placeholder="Buscar por título, cliente ou número do caso..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10 pr-10"
+        />
+        {searchQuery && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7"
+            onClick={clearSearch}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+
+      {/* Contador de resultados */}
+      {searchQuery && (
+        <div className="mb-4">
+          <p className="text-sm text-muted-foreground">
+            {filteredCases.length} {filteredCases.length === 1 ? 'caso encontrado' : 'casos encontrados'} 
+            {searchQuery && ` para "${searchQuery}"`}
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {cases.length === 0 ? (
+        {filteredCases.length === 0 ? (
           <div className="col-span-full text-center py-12">
-            <Scale className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground text-lg">Nenhum caso encontrado.</p>
-            <p className="text-sm text-muted-foreground mt-2">Clique em "Novo Caso" para começar.</p>
+            {searchQuery ? (
+              <>
+                <Search className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground text-lg">Nenhum caso encontrado.</p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Não encontramos casos para "{searchQuery}". Tente outros termos.
+                </p>
+                <Button variant="outline" onClick={clearSearch} className="mt-4">
+                  Limpar busca
+                </Button>
+              </>
+            ) : (
+              <>
+                <Scale className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground text-lg">Nenhum caso encontrado.</p>
+                <p className="text-sm text-muted-foreground mt-2">Clique em "Novo Caso" para começar.</p>
+              </>
+            )}
           </div>
         ) : (
-          cases.map((caseItem) => (
+          filteredCases.map((caseItem) => (
             <Link key={caseItem.id} to={`/cases/${caseItem.id}`} className="group">
               <Card className="h-full transition-all duration-300 ease-in-out hover:shadow-lg hover:shadow-blue-100 hover:border-blue-200 hover:-translate-y-1 cursor-pointer border border-gray-200">
                 <CardHeader className="pb-3">
@@ -218,10 +289,10 @@ export function Cases() {
                       <span className="font-medium">{getCaseTypeLabel(caseItem.case_type)}</span>
                     </div>
                     
-                    {caseItem.client && ( // ← NEW
+                    {caseItem.client && (
                       <div className="flex items-center text-sm text-gray-600">
-                      <User className="h-4 w-4 mr-2 text-gray-400" />
-                       <span>{caseItem.client.name}</span>
+                        <User className="h-4 w-4 mr-2 text-gray-400" />
+                        <span>{caseItem.client.name}</span>
                       </div>
                     )}
                     
@@ -277,4 +348,3 @@ export function Cases() {
     </AppLayout>
   );
 }
-
