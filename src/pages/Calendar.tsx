@@ -2,10 +2,28 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Calendar as CalendarIcon, Clock, User, MapPin } from "lucide-react"
+import { Plus, Calendar as CalendarIcon, Clock, User, MapPin, Edit, Trash2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { LawFirmService, LawAppointment } from "@/services/lawFirmService"
 import { AppointmentForm } from "@/components/appointment/AppointmentForm"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { MoreVertical } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 export default function Calendar() {
   const [selectedDate, setSelectedDate] = useState(new Date())
@@ -13,6 +31,10 @@ export default function Calendar() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingAppointment, setEditingAppointment] = useState<LawAppointment | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [appointmentToDelete, setAppointmentToDelete] = useState<LawAppointment | null>(null);
+  const { toast } = useToast();
 
   const fetchAppointments = async () => {
     setLoading(true);
@@ -36,6 +58,43 @@ export default function Calendar() {
   useEffect(() => {
     fetchAppointments();
   }, []);
+
+ const handleEditAppointment = (appointment: LawAppointment) => {
+  console.log("Editando agendamento - dados completos:", appointment);
+  console.log("client_id:", appointment.client_id, "type:", typeof appointment.client_id);
+  console.log("case_id:", appointment.case_id, "type:", typeof appointment.case_id);
+  
+  setEditingAppointment(appointment);
+  setIsFormOpen(true);
+};
+
+  const handleDeleteAppointment = async () => {
+    if (!appointmentToDelete) return;
+
+    try {
+      await LawFirmService.deleteAppointment(appointmentToDelete.id);
+      toast({
+        title: "Agendamento excluído",
+        description: "O agendamento foi removido com sucesso.",
+      });
+      fetchAppointments(); // Recarregar a lista
+    } catch (error) {
+      console.error("Failed to delete appointment:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível excluir o agendamento.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteDialogOpen(false);
+      setAppointmentToDelete(null);
+    }
+  };
+
+  const openDeleteDialog = (appointment: LawAppointment) => {
+    setAppointmentToDelete(appointment);
+    setDeleteDialogOpen(true);
+  };
 
   const today = new Date().toISOString().split('T')[0]
   const todayAppointments = appointments.filter(apt => apt.appointment_date === today)
@@ -88,66 +147,87 @@ export default function Calendar() {
     }
   }
 
- // No arquivo Calendar.tsx, atualize a função renderAppointments
-const renderAppointments = (appointmentsList: LawAppointment[], title: string) => (
-  <Card className="h-full">
-    <CardHeader>
-      <CardTitle className="text-xl font-bold">{title}</CardTitle>
-    </CardHeader>
-    <CardContent className="space-y-3">
-      {loading && <p>Carregando agendamentos...</p>}
-      {error && <p className="text-destructive">{error}</p>}
-      {!loading && appointmentsList.length === 0 && <p className="text-sm text-muted-foreground">Nenhum agendamento encontrado.</p>}
-      {appointmentsList.map(apt => (
-        <div key={apt.id} className="p-3 border-l-4 border-l-primary bg-primary/5 rounded">
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center space-x-2">
-              <Badge className={getTypeColor(apt.appointment_type)}>
-                {getTypeLabel(apt.appointment_type)}
-              </Badge>
-              <Badge variant="outline" className="text-xs">
-                {getStatusLabel(apt.status)}
-              </Badge>
+  const renderAppointments = (appointmentsList: LawAppointment[], title: string) => (
+    <Card className="h-full">
+      <CardHeader>
+        <CardTitle className="text-xl font-bold">{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {loading && <p>Carregando agendamentos...</p>}
+        {error && <p className="text-destructive">{error}</p>}
+        {!loading && appointmentsList.length === 0 && <p className="text-sm text-muted-foreground">Nenhum agendamento encontrado.</p>}
+        {appointmentsList.map(apt => (
+          <div key={apt.id} className="p-3 border-l-4 border-l-primary bg-primary/5 rounded relative group">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleEditAppointment(apt)}>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Editar
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  className="text-destructive"
+                  onClick={() => openDeleteDialog(apt)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Excluir
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center space-x-2">
+                <Badge className={getTypeColor(apt.appointment_type)}>
+                  {getTypeLabel(apt.appointment_type)}
+                </Badge>
+                <Badge variant="outline" className="text-xs">
+                  {getStatusLabel(apt.status)}
+                </Badge>
+              </div>
             </div>
+            <p className="font-medium text-sm">{apt.title}</p>
+            
+            {apt.client && apt.client.name && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Cliente: {apt.client.name}
+              </p>
+            )}
+            
+            {apt.case && apt.case.title && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Caso: {apt.case.title} {apt.case.case_number && `- ${apt.case.case_number}`}
+              </p>
+            )}
+            
+            <p className="text-xs text-muted-foreground mt-1">
+              {new Date(apt.appointment_date).toLocaleDateString('pt-BR')} às {apt.start_time}
+            </p>
+            
+            {apt.location && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Local: {apt.location}
+              </p>
+            )}
           </div>
-          <p className="font-medium text-sm">{apt.title}</p>
-          
-          {/* Verificar se client existe e tem propriedade name */}
-          {apt.client && apt.client.name && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Cliente: {apt.client.name}
-            </p>
-          )}
-          
-          {/* Verificar se case existe e tem propriedade title */}
-          {apt.case && apt.case.title && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Caso: {apt.case.title} {apt.case.case_number && `- ${apt.case.case_number}`}
-            </p>
-          )}
-          
-          <p className="text-xs text-muted-foreground mt-1">
-            {new Date(apt.appointment_date).toLocaleDateString('pt-BR')} às {apt.start_time}
-          </p>
-          
-          {apt.location && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Local: {apt.location}
-            </p>
-          )}
-        </div>
-      ))}
-    </CardContent>
-  </Card>
-)
+        ))}
+      </CardContent>
+    </Card>
+  )
 
   return (
-    <AppLayout>
+    <AppLayout title="">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 space-y-6">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold">Agenda Jurídica</h1>
-            <Button onClick={() => setIsFormOpen(true)}>
+            <Button onClick={() => {
+              setEditingAppointment(null);
+              setIsFormOpen(true);
+            }}>
               <Plus className="mr-2 h-4 w-4" />
               Novo Evento
             </Button>
@@ -168,7 +248,10 @@ const renderAppointments = (appointmentsList: LawAppointment[], title: string) =
                 variant="outline" 
                 className="w-full justify-start" 
                 size="sm"
-                onClick={() => setIsFormOpen(true)}
+                onClick={() => {
+                  setEditingAppointment(null);
+                  setIsFormOpen(true);
+                }}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 Criar Evento
@@ -214,7 +297,26 @@ const renderAppointments = (appointmentsList: LawAppointment[], title: string) =
         open={isFormOpen} 
         onOpenChange={setIsFormOpen} 
         onAppointmentCreated={fetchAppointments}
+        editingAppointment={editingAppointment}
       />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir agendamento</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o agendamento "{appointmentToDelete?.title}"?
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteAppointment} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   )
 }
