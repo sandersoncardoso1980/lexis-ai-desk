@@ -31,7 +31,6 @@ export function WhatsAppButton({
         ) : (
           <>
             <MessageCircle className="h-4 w-4 mr-1" />
-            WhatsApp
           </>
         )}
       </Button>

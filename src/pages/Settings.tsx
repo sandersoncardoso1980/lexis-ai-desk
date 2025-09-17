@@ -311,12 +311,7 @@ export default function Settings() {
   };
 
   return (
-    <AppLayout
-    title="Configurações"
-    breadcrumbs={[
-      { label: "Dashboard", href: "/" },
-      { label: "Configurações" }
-    ]}>
+    <AppLayout>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Configurações</h2>

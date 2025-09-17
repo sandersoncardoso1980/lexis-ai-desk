@@ -173,13 +173,7 @@ export function Cases() {
 
   if (loading) {
     return (
-      <AppLayout
-        title="Casos"
-        breadcrumbs={[
-          { label: "Dashboard", href: "/" },
-          { label: "Casos" },
-        ]}
-      >
+      <AppLayout>
         <div className="flex items-center justify-center h-64">
           <Loader2 className="h-8 w-8 animate-spin" />
         </div>
@@ -188,13 +182,7 @@ export function Cases() {
   }
 
   return (
-    <AppLayout
-      title="Casos"
-      breadcrumbs={[
-        { label: "Dashboard", href: "/" },
-        { label: "Casos" },
-      ]}
-    >
+    <AppLayout >
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold">Gestão de Casos</h1>

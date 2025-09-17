@@ -92,7 +92,7 @@ const generatePetition = async (prompt: string): Promise<{ content: string; docu
   const groqMessages = [
     {
       role: "system",
-      content: `Você é um advogado experiente. Elabore uma petição inicial com base nas informações fornecidas. Use estrutura formal, com exposição de fatos, fundamento jurídico e pedido.`
+      content: `Você é um advogado experiente. Elabore uma petição inicial com base nas informações fornecidas. Use estrutura formal, com exposição de fatos, fundamento jurídico e pedido.Forneça sempre respostas resumidas e curtas. Caso o usuário insista, aconselhe a buscar fontes oficiais.`
     },
     { role: "user", content: prompt }
   ];
@@ -230,7 +230,7 @@ export default function AIAssistant() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
-      content: "👋 Olá! Sou o Spector, seu assistente jurídico inteligente. Posso ajudá-lo com:\n\n• 📄 **Gerar petições, contratos e procurações**\n• 🔍 **Pesquisar jurisprudência e artigos**\n• 📋 **Tarefas e compromissos de hoje**\n• 👥 **Buscar clientes e documentos**\n\nComo posso ajudá-lo hoje?",
+      content: "👋 Olá! Sou o Harvey Spector, seu assistente jurídico inteligente. Posso ajudá-lo com:\n\n• 📄 **Gerar petições, contratos e procurações**\n• 🔍 **Pesquisar jurisprudência e artigos**\n• 📋 **Tarefas e compromissos de hoje**\n• 👥 **Buscar clientes e documentos**\n\nComo posso ajudá-lo hoje?",
       sender: "ai",
       timestamp: new Date().toISOString(),
       suggestions: [
@@ -379,9 +379,7 @@ export default function AIAssistant() {
   };
 
   return (
-    <AppLayout 
-    title="Spector IA"
-    breadcrumbs={[{ label: "Dashboard", href: "/" }, { label: "Spector IA" }]}>
+    <AppLayout>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
         <div className="flex items-center justify-between w-full">
           <div>

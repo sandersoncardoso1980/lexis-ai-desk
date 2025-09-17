@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Plus, Search, Mail, Phone, Building, Eye, Edit, Trash2, X, FileText, Briefcase } from "lucide-react"
+import { Plus, Search, Mail, Phone, Building, Eye, Edit, Trash2, X, FileText, Briefcase, ArrowUpDown, ChevronDown } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { LawFirmService, type LawClient, type LawCase } from "@/services/lawFirmService"
 import { useState, useEffect } from "react"
@@ -30,6 +30,18 @@ import {
 } from "@/components/ui/alert-dialog"
 import ClientDetails from "@/pages/ClientDetail"
 import { WhatsAppButton } from "@/components/utils/WhatsAppButton"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+
+// Tipos para ordenação
+type SortField = 'name' | 'email' | 'status' | 'created_at' | 'cases_count'
+type SortDirection = 'asc' | 'desc'
 
 export default function Clients() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -40,6 +52,8 @@ export default function Clients() {
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [selectedClient, setSelectedClient] = useState<LawClient | null>(null)
+  const [sortField, setSortField] = useState<SortField>('name')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const { toast } = useToast()
 
   const loadClientsAndCases = async () => {
@@ -117,12 +131,62 @@ export default function Clients() {
     setShowDetailsModal(true)
   }
 
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      // Se já está ordenando por este campo, inverte a direção
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      // Se é um campo novo, define como ascendente
+      setSortField(field)
+      setSortDirection('asc')
+    }
+  }
+
   const filteredClients = clients.filter(client =>
     client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (client.phone && client.phone.includes(searchTerm)) ||
     (client.document_number && client.document_number.includes(searchTerm))
   )
+
+  // Ordenar os clientes filtrados
+  const sortedClients = [...filteredClients].sort((a, b) => {
+    let aValue: any
+    let bValue: any
+
+    switch (sortField) {
+      case 'name':
+        aValue = a.name.toLowerCase()
+        bValue = b.name.toLowerCase()
+        break
+      case 'email':
+        aValue = a.email.toLowerCase()
+        bValue = b.email.toLowerCase()
+        break
+      case 'status':
+        aValue = a.status
+        bValue = b.status
+        break
+      case 'created_at':
+        aValue = new Date(a.created_at)
+        bValue = new Date(b.created_at)
+        break
+      case 'cases_count':
+        aValue = casesByClient[a.id]?.length || 0
+        bValue = casesByClient[b.id]?.length || 0
+        break
+      default:
+        return 0
+    }
+
+    if (aValue < bValue) {
+      return sortDirection === 'asc' ? -1 : 1
+    }
+    if (aValue > bValue) {
+      return sortDirection === 'asc' ? 1 : -1
+    }
+    return 0
+  })
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -142,19 +206,21 @@ export default function Clients() {
     }
   }
 
+  const getSortLabel = (field: SortField) => {
+    switch (field) {
+      case 'name': return 'Nome'
+      case 'email': return 'Email'
+      case 'status': return 'Status'
+      case 'created_at': return 'Data de Criação'
+      case 'cases_count': return 'Número de Casos'
+      default: return field
+    }
+  }
+
   return (
     <AppLayout 
-    title="Clientes"
-    breadcrumbs={[
-      { label: "Dashboard", href: "/" },
-      { label: "Clientes" }
-    ]}>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Clientes</h2>
-          <p className="text-muted-foreground">Gerencie seus clientes e visualize informações</p>
-        </div>
-        
+    title="Clientes">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">     
         <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
           <DialogTrigger asChild>
             <Button className="bg-gradient-primary w-full sm:w-auto">
@@ -175,6 +241,36 @@ export default function Clients() {
             />
           </DialogContent>
         </Dialog>
+
+        {/* Menu de Ordenação */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="w-full sm:w-auto">
+              <ArrowUpDown className="mr-2 h-4 w-4" />
+              Ordenar por: {getSortLabel(sortField)}
+              <ChevronDown className="ml-2 h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuLabel>Ordenar por</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => handleSort('name')}>
+              Nome {sortField === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleSort('email')}>
+              Email {sortField === 'email' && (sortDirection === 'asc' ? '↑' : '↓')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleSort('status')}>
+              Status {sortField === 'status' && (sortDirection === 'asc' ? '↑' : '↓')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleSort('created_at')}>
+              Data de Criação {sortField === 'created_at' && (sortDirection === 'asc' ? '↑' : '↓')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleSort('cases_count')}>
+              Número de Casos {sortField === 'cases_count' && (sortDirection === 'asc' ? '↑' : '↓')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Busca */}
@@ -188,9 +284,30 @@ export default function Clients() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="flex-1"
             />
+            {searchTerm && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSearchTerm('')}
+                className="h-8 w-8"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
+
+      {/* Indicador de ordenação */}
+      <div className="mb-4 flex items-center justify-between">
+        <span className="text-sm text-muted-foreground">
+          {sortedClients.length} {sortedClients.length === 1 ? 'cliente encontrado' : 'clientes encontrados'}
+          {searchTerm && ` para "${searchTerm}"`}
+        </span>
+        <span className="text-sm text-muted-foreground">
+          Ordenado por: {getSortLabel(sortField)} {sortDirection === 'asc' ? '↑' : '↓'}
+        </span>
+      </div>
 
       {loading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -209,77 +326,74 @@ export default function Clients() {
           ))}
         </div>
       ) : (
-       
-<div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-  {filteredClients.map((client) => (
-    <Card key={client.id} className="hover:shadow-md transition-shadow w-full">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center space-x-3 min-w-0">
-            <Avatar>
-              <AvatarFallback className="bg-primary/10 text-primary">
-                {client.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-              </AvatarFallback>
-            </Avatar>
-            <CardTitle className="text-lg truncate">{client.name}</CardTitle>
-          </div>
-          <Badge className={getStatusColor(client.status)}>
-            {getStatusLabel(client.status)}
-          </Badge>
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          {sortedClients.map((client) => (
+            <Card key={client.id} className="hover:shadow-md transition-shadow w-full">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center space-x-3 min-w-0">
+                    <Avatar>
+                      <AvatarFallback className="bg-primary/10 text-primary">
+                        {client.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <CardTitle className="text-lg truncate">{client.name}</CardTitle>
+                  </div>
+                  <Badge className={getStatusColor(client.status)}>
+                    {getStatusLabel(client.status)}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center space-x-2 text-sm text-muted-foreground break-words">
+                  <Mail className="h-4 w-4" />
+                  <span className="truncate">{client.email}</span>
+                </div>
+                {client.phone && (
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <div className="flex items-center space-x-2 min-w-0">
+                      <Phone className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{client.phone}</span>
+                    </div>
+                    <WhatsAppButton
+                      phoneNumber={client.phone}
+                      size="icon"
+                      variant="ghost"
+                      message={`Olá ${client.name}, tudo bem?`}
+                    />
+                  </div>
+                )}
+                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                  <Briefcase className="h-4 w-4" />
+                  <span className="truncate">
+                    {casesByClient[client.id]?.length > 0
+                      ? `${casesByClient[client.id].length} caso(s)`
+                      : "Nenhum caso"}
+                  </span>
+                </div>
+                <div className="pt-3 border-t">
+                  <p className="text-xs text-muted-foreground">
+                    Cliente desde: {new Date(client.created_at).toLocaleDateString('pt-BR')}
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => handleViewClientDetails(client)}
+                  >
+                    <Eye className="mr-1 h-3 w-3" />
+                    Ver Detalhes
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex items-center space-x-2 text-sm text-muted-foreground break-words">
-          <Mail className="h-4 w-4" />
-          <span className="truncate">{client.email}</span>
-        </div>
-       {client.phone && (
-  <div className="flex items-center justify-between text-sm text-muted-foreground">
-    <div className="flex items-center space-x-2 min-w-0">
-      <Phone className="h-4 w-4 shrink-0" />
-      <span className="truncate">{client.phone}</span>
-    </div>
-    <WhatsAppButton
-  phoneNumber={client.phone}
-  size="icon"
-  variant="ghost"
-  message={`Olá ${client.name}, tudo bem?`}
-/>
-  </div>
-)}
-
-        <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-          <Briefcase className="h-4 w-4" />
-          <span className="truncate">
-            {casesByClient[client.id]?.length > 0
-              ? `${casesByClient[client.id].length} caso(s)`
-              : "Nenhum caso"}
-          </span>
-        </div>
-        <div className="pt-3 border-t">
-          <p className="text-xs text-muted-foreground">
-            Cliente desde: {new Date(client.created_at).toLocaleDateString('pt-BR')}
-          </p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1"
-            onClick={() => handleViewClientDetails(client)}
-          >
-            <Eye className="mr-1 h-3 w-3" />
-            Ver Detalhes
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  ))}
-</div>
-
       )}
 
-      {/* Modal de Detalhes do Cliente - REMOVIDO O BOTÃO DE FECHAR DUPLICADO */}
+      {/* Modal de Detalhes do Cliente */}
       <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>

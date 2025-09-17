@@ -9,6 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { Eye, EyeOff, Scale } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const loginSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -20,6 +21,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const { signIn, loading } = useAuth();
+  const navigate = useNavigate();
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -33,6 +35,7 @@ export function LoginForm() {
     try {
       await signIn(data.email, data.password);
       toast.success("Login realizado com sucesso!");
+      navigate('/');
     } catch (error: any) {
       toast.error(error.message || "Erro ao fazer login");
     }

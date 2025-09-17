@@ -19,7 +19,7 @@ import {
   CheckSquare,
   RefreshCw,
 } from "lucide-react";
-import { LawFirmService } from "@/services/lawFirmService";
+import { LawFirmService, type LawCase, type LawTask, type LawAppointment } from "@/services/lawFirmService";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
@@ -34,9 +34,9 @@ interface DashboardData {
   activeCases: number;
   pendingTasks: number;
   todayAppointments: number;
-  recentCases: any[];
-  recentTasks: any[];
-  upcomingAppointments: any[];
+  recentCases: LawCase[];
+  recentTasks: LawTask[];
+  upcomingAppointments: LawAppointment[];
   lastUpdated: string;
 }
 
@@ -89,8 +89,8 @@ const clearCache = () => {
 // ---------- Skeleton ----------
 const DashboardSkeleton = () => (
   <AppLayout 
-  title="Dashboard"
-  breadcrumbs={[{ label: "Dashboard" }]}>
+    title="Dashboard"
+    breadcrumbs={[{ label: "Dashboard" }]}>
     <div className="space-y-6">
       <Skeleton className="h-10 w-64" />
       <Skeleton className="h-6 w-80" />
@@ -136,26 +136,6 @@ const DashboardSkeleton = () => (
   </AppLayout>
 );
 
-// ---------- Mock Fallback ----------
-const getMockData = (): DashboardData => ({
-  profile: { full_name: "Advogado Silva" },
-  totalClients: 24,
-  activeCases: 12,
-  pendingTasks: 8,
-  todayAppointments: 3,
-  recentCases: [
-    { id: "1", title: "Contrato Comercial", case_number: "2024-001", status: "open" },
-    { id: "2", title: "Divórcio Consensual", case_number: "2024-002", status: "open" },
-    { id: "3", title: "Recuperação de Crédito", case_number: "2024-003", status: "in_progress" },
-  ],
-  recentTasks: [
-    { id: "1", title: "Preparar Petição Inicial", status: "pending", priority: "high", due_date: new Date().toISOString().split("T")[0] },
-    { id: "2", title: "Reunião com Cliente", status: "pending", priority: "medium", due_date: new Date(Date.now() + 86400000).toISOString().split("T")[0] },
-  ],
-  upcomingAppointments: [],
-  lastUpdated: new Date().toISOString()
-});
-
 // ---------- Cores ----------
 const statusColor = (s: string) => {
   switch (s) {
@@ -166,12 +146,32 @@ const statusColor = (s: string) => {
     default: return "bg-gray-100 text-gray-800";
   }
 };
+
+const statusLabel = (s: string) => {
+  switch (s) {
+    case "open": return "Aberto";
+    case "in_progress": return "Em Andamento";
+    case "closed": return "Fechado";
+    case "pending": return "Pendente";
+    default: return s;
+  }
+};
+
 const priorityColor = (p: string) => {
   switch (p) {
     case "high": return "bg-red-100 text-red-800";
     case "medium": return "bg-yellow-100 text-yellow-800";
     case "low": return "bg-blue-100 text-blue-800";
     default: return "bg-gray-100 text-gray-800";
+  }
+};
+
+const priorityLabel = (p: string) => {
+  switch (p) {
+    case "high": return "Alta";
+    case "medium": return "Média";
+    case "low": return "Baixa";
+    default: return p;
   }
 };
 
@@ -200,12 +200,12 @@ export default function Dashboard() {
       
       // Executa todas as chamadas em paralelo para melhor performance
       const [
-        profile, 
+        profiles, 
         clients, 
         cases, 
-        tasks, 
-        appointments
-      ] = await Promise.allSettled([
+        tasks,
+        appointmentsToday
+      ] = await Promise.all([
         LawFirmService.getProfiles(),
         LawFirmService.getClients(),
         LawFirmService.getCases(),
@@ -216,19 +216,33 @@ export default function Dashboard() {
         )
       ]);
 
-      const today = new Date().toISOString().split("T")[0];
-      const upcomingAppointments = await LawFirmService.getUpcomingAppointments(3).catch(() => []);
+      // Buscar compromissos futuros
+      const upcomingAppointments = await LawFirmService.getUpcomingAppointments(3);
 
       const dashboardData: DashboardData = {
-        profile: profile.status === 'fulfilled' && profile.value[0] ? profile.value[0] : { full_name: "Advogado" },
-        totalClients: clients.status === 'fulfilled' ? clients.value.length : 0,
-        activeCases: cases.status === 'fulfilled' ? cases.value.filter((c: any) => c.status === "open").length : 0,
-        pendingTasks: tasks.status === 'fulfilled' ? tasks.value.filter((t: any) => t.status === "pending").length : 0,
-        todayAppointments: appointments.status === 'fulfilled' ? appointments.value.length : 0,
-        recentCases: cases.status === 'fulfilled' ? cases.value.slice(0, 3) : [],
-        recentTasks: tasks.status === 'fulfilled' ? 
-          tasks.value.filter((t: any) => t.priority === "high" && t.status === "pending").slice(0, 3) : [],
-        upcomingAppointments: upcomingAppointments,
+        profile: profiles[0] || { full_name: "Advogado" },
+        totalClients: clients.length,
+        activeCases: cases.filter(c => c.status === "open" || c.status === "in_progress").length,
+        pendingTasks: tasks.filter(t => t.status === "pending").length,
+        todayAppointments: appointmentsToday.length,
+        recentCases: cases.slice(0, 3),
+        recentTasks: tasks
+          .filter(t => t.status === "pending")
+          .sort((a, b) => {
+            // Ordenar por prioridade (urgent > high > medium > low) e depois por data
+            const priorityOrder = { urgent: 4, high: 3, medium: 2, low: 1 };
+            const aPriority = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
+            const bPriority = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
+            
+            if (bPriority !== aPriority) {
+              return bPriority - aPriority;
+            }
+            
+            // Se mesma prioridade, ordenar por data mais próxima
+            return new Date(a.due_date || 0).getTime() - new Date(b.due_date || 0).getTime();
+          })
+          .slice(0, 3),
+        upcomingAppointments: upcomingAppointments.slice(0, 3),
         lastUpdated: new Date().toISOString()
       };
 
@@ -241,15 +255,11 @@ export default function Dashboard() {
           description: "Dashboard atualizado com sucesso"
         });
       }
-    } catch {
-      // Fallback para dados mockados em caso de erro
-      const mockData = getMockData();
-      setData(mockData);
-      setCachedData(mockData);
-      
+    } catch (error) {
+      console.error("Erro ao carregar dashboard:", error);
       toast({ 
         title: "Erro ao carregar dados", 
-        description: "Mostrando informações de demonstração",
+        description: "Não foi possível carregar as informações do dashboard",
         variant: "destructive" 
       });
     } finally {
@@ -271,8 +281,8 @@ export default function Dashboard() {
 
   return (
     <AppLayout 
-    title="Dashboard"
-    breadcrumbs={[{ label: "Dashboard" }]}>
+      title="Dashboard"
+      breadcrumbs={[{ label: "Dashboard" }]}>
       {/* Header + Busca */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
         <div className="flex-1">
@@ -336,7 +346,10 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <Badge variant="outline" className="text-xs">
-                    {item._type}
+                    {item._type === "case" ? "Caso" : 
+                     item._type === "task" ? "Tarefa" : 
+                     item._type === "client" ? "Cliente" : 
+                     item._type === "appointment" ? "Compromisso" : "Documento"}
                   </Badge>
                 </Link>
               ))}
@@ -394,58 +407,116 @@ export default function Dashboard() {
 
       {/* Conteúdo Principal */}
       <div className="grid gap-6 lg:grid-cols-7">
+        {/* Casos Recentes */}
         <Card className="col-span-4">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Briefcase className="h-5 w-5" />
               Casos Recentes
             </CardTitle>
+            <Link to="/cases">
+              <Button variant="ghost" size="sm" className="text-xs">
+                Ver todos
+              </Button>
+            </Link>
           </CardHeader>
           <CardContent className="space-y-4">
-            {data.recentCases.length ? (
-              data.recentCases.map((c) => (
-                <Link key={c.id} to={`/cases/${c.id}`}>
+            {data.recentCases.length > 0 ? (
+              data.recentCases.map((caseItem) => (
+                <Link key={caseItem.id} to={`/cases/${caseItem.id}`}>
                   <div className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 transition">
-                    <div>
-                      <p className="font-medium">{c.title}</p>
-                      <p className="text-sm text-gray-500">{c.case_number}</p>
+                    <div className="flex-1">
+                      <p className="font-medium">{caseItem.title}</p>
+                      <p className="text-sm text-gray-500">{caseItem.case_number}</p>
+                      {caseItem.client && (
+                        <p className="text-xs text-gray-400">Cliente: {caseItem.client.name}</p>
+                      )}
                     </div>
-                    <Badge className={statusColor(c.status)}>{c.status}</Badge>
+                    <Badge className={statusColor(caseItem.status)}>
+                      {statusLabel(caseItem.status)}
+                    </Badge>
                   </div>
                 </Link>
               ))
             ) : (
-              <p className="text-gray-500">Nenhum caso recente</p>
+              <p className="text-gray-500 text-center py-4">Nenhum caso encontrado</p>
             )}
           </CardContent>
         </Card>
 
+        {/* Tarefas Urgentes */}
         <Card className="col-span-3">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
-              Tarefas Urgentes
+              Tarefas Prioritárias
             </CardTitle>
+            <Link to="/tasks">
+              <Button variant="ghost" size="sm" className="text-xs">
+                Ver todas
+              </Button>
+            </Link>
           </CardHeader>
           <CardContent className="space-y-4">
-            {data.recentTasks.length ? (
-              data.recentTasks.map((t) => (
-                <Link key={t.id} to="/tasks">
+            {data.recentTasks.length > 0 ? (
+              data.recentTasks.map((task) => (
+                <Link key={task.id} to="/tasks">
                   <div className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 transition">
-                    <div>
-                      <p className="font-medium">{t.title}</p>
-                      <p className="text-sm text-gray-500">Prazo: {new Date(t.due_date).toLocaleDateString("pt-BR")}</p>
+                    <div className="flex-1">
+                      <p className="font-medium">{task.title}</p>
+                      <p className="text-sm text-gray-500">
+                        {task.due_date ? `Prazo: ${new Date(task.due_date).toLocaleDateString("pt-BR")}` : "Sem prazo"}
+                      </p>
                     </div>
-                    <Badge className={priorityColor(t.priority)}>{t.priority}</Badge>
+                    <Badge className={priorityColor(task.priority)}>
+                      {priorityLabel(task.priority)}
+                    </Badge>
                   </div>
                 </Link>
               ))
             ) : (
-              <p className="text-gray-500">Nenhuma tarefa urgente</p>
+              <p className="text-gray-500 text-center py-4">Nenhuma tarefa prioritária</p>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Compromissos Futuros */}
+      {data.upcomingAppointments.length > 0 && (
+        <Card className="mt-6">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <CalendarDays className="h-5 w-5" />
+              Próximos Compromissos
+            </CardTitle>
+            <Link to="/calendar">
+              <Button variant="ghost" size="sm" className="text-xs">
+                Ver todos
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {data.upcomingAppointments.map((appointment) => (
+              <Link key={appointment.id} to="/calendar">
+                <div className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 transition">
+                  <div className="flex-1">
+                    <p className="font-medium">{appointment.title}</p>
+                    <p className="text-sm text-gray-500">
+                      {appointment.appointment_date} às {appointment.start_time}
+                    </p>
+                    {appointment.client && (
+                      <p className="text-xs text-gray-400">Cliente: {appointment.client.name}</p>
+                    )}
+                  </div>
+                  <Badge variant="outline">
+                    {appointment.appointment_type}
+                  </Badge>
+                </div>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </AppLayout>
   );
 }

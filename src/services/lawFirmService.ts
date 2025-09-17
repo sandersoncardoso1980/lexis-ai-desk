@@ -224,6 +224,24 @@ static async updateClient(id: string, updates: Partial<LawClient>): Promise<LawC
     return data as LawCase
   }
 
+static async getCaseById(id: string): Promise<LawCase> {
+  try {
+    const response = await fetch(`/api/cases/${id}`);
+    if (!response.ok) {
+      throw new Error('Caso não encontrado');
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Erro no getCaseById:', error);
+    throw error;
+  }
+}
+
+
+
+
+
   static async createCase(caseData: NewLawCase): Promise<LawCase> {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('User not authenticated')
